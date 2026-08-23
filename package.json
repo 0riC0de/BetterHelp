@@ -1,0 +1,30 @@
+{
+  "name": "it-helpdesk-ingress",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "WhatsApp Web ingress API for an automated IT helpdesk system.",
+  "scripts": {
+    "dev": "nodemon src/server.js",
+    "start": "node src/server.js",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:deploy": "prisma migrate deploy",
+    "prisma:generate": "prisma generate"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.14.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "morgan": "^1.10.0",
+    "qrcode-terminal": "^0.12.0",
+    "whatsapp-web.js": "^1.26.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.9",
+    "prisma": "^6.14.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

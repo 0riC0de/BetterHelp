@@ -1,0 +1,24 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Ticket {
+  id              Int       @id @default(autoincrement())
+  userPhone       String
+  userName        String?
+  rawMessage      String
+  status          String    @default("open")
+  aiDecision      String?
+  scriptExecuted  String?
+  executionOutput Json?
+  createdAt       DateTime  @default(now())
+  resolvedAt      DateTime?
+
+  @@index([status])
+  @@index([createdAt])
+}
