@@ -41,7 +41,14 @@ function shouldHandleMessage(message) {
   );
 }
 
-async function handleIncomingMessage(message) {
+async function handleIncomingMessage(message, eventName) {
+  console.log("WhatsApp message event", {
+    event: eventName,
+    fromMe: message.fromMe,
+    type: message.type,
+    chatSuffix: message.from?.slice(-8),
+  });
+
   const messageId = message.id?._serialized;
 
   if (messageId && processedMessages.has(messageId)) {
@@ -51,6 +58,7 @@ async function handleIncomingMessage(message) {
   rememberMessage(messageId);
 
   if (!shouldHandleMessage(message)) {
+    console.log("WhatsApp message ignored");
     return;
   }
 
@@ -58,6 +66,8 @@ async function handleIncomingMessage(message) {
   const userPhone = message.from.replace("@c.us", "");
   const userName = contact.pushname || contact.name || contact.shortName || null;
   const rawMessage = message.body.trim();
+
+  console.log("Creating helpdesk ticket from WhatsApp message");
 
   await prisma.ticket.create({
     data: {
@@ -67,6 +77,8 @@ async function handleIncomingMessage(message) {
       status: "open",
     },
   });
+
+  console.log("Helpdesk ticket created from WhatsApp message");
 
   if (process.env.WHATSAPP_AUTO_REPLY === "true") {
     await message.reply(
@@ -107,13 +119,13 @@ export async function initializeWhatsApp() {
   });
 
   client.on("message", (message) => {
-    handleIncomingMessage(message).catch((error) => {
+    handleIncomingMessage(message, "message").catch((error) => {
       console.error("Failed to process incoming WhatsApp message", error);
     });
   });
 
   client.on("message_create", (message) => {
-    handleIncomingMessage(message).catch((error) => {
+    handleIncomingMessage(message, "message_create").catch((error) => {
       console.error("Failed to process created WhatsApp message", error);
     });
   });
