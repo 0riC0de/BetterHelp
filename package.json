@@ -6,7 +6,7 @@
   "description": "WhatsApp Web ingress API for an automated IT helpdesk system.",
   "scripts": {
     "dev": "nodemon src/server.js",
-    "start": "node src/server.js",
+    "start": "find . -name 'Singleton*' -delete && node src/server.js",
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
     "prisma:generate": "prisma generate"
