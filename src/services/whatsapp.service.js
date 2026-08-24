@@ -43,6 +43,20 @@ function shouldHandleMessage(message) {
   );
 }
 
+function getUserPhone(message, contact) {
+  const contactId = contact.id?._serialized;
+
+  if (contactId?.endsWith("@c.us")) {
+    return contactId.replace("@c.us", "");
+  }
+
+  if (message.from.endsWith("@c.us")) {
+    return message.from.replace("@c.us", "");
+  }
+
+  return contact.number || contactId || message.from;
+}
+
 async function handleIncomingMessage(message, eventName) {
   console.log("WhatsApp message event", {
     event: eventName,
@@ -65,11 +79,7 @@ async function handleIncomingMessage(message, eventName) {
   }
 
   const contact = await message.getContact();
-  const userPhone =
-    contact.number ||
-    (message.from.endsWith("@c.us")
-      ? message.from.replace("@c.us", "")
-      : message.from);
+  const userPhone = getUserPhone(message, contact);
   const userName = contact.pushname || contact.name || contact.shortName || null;
   const rawMessage = message.body.trim();
 
@@ -127,12 +137,6 @@ export async function initializeWhatsApp() {
   client.on("message", (message) => {
     handleIncomingMessage(message, "message").catch((error) => {
       console.error("Failed to process incoming WhatsApp message", error);
-    });
-  });
-
-  client.on("message_create", (message) => {
-    handleIncomingMessage(message, "message_create").catch((error) => {
-      console.error("Failed to process created WhatsApp message", error);
     });
   });
 
