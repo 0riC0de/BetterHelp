@@ -68,9 +68,11 @@ async function handleIncomingMessage(message) {
     },
   });
 
-  await message.reply(
-    "IT Bot received your request. An IT technician will review it shortly.",
-  );
+  if (process.env.WHATSAPP_AUTO_REPLY === "true") {
+    await message.reply(
+      "IT Bot received your request. An IT technician will review it shortly.",
+    );
+  }
 }
 
 export async function initializeWhatsApp() {

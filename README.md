@@ -21,6 +21,7 @@ Edit `.env` and set a real database password:
 POSTGRES_DB=helpdesk
 POSTGRES_USER=helpdesk
 POSTGRES_PASSWORD=change_this_password
+WHATSAPP_AUTO_REPLY=false
 ```
 
 Use an alphanumeric password to avoid URL escaping issues in `DATABASE_URL`.
@@ -98,4 +99,10 @@ npm run dev
 
 ## WhatsApp Message Flow
 
-Send a direct WhatsApp message to the authenticated WhatsApp account. The service ignores bot-sent messages, groups, status broadcasts, and empty messages. Valid direct messages are inserted as `open` tickets and receive an immediate acknowledgment reply.
+Send a direct WhatsApp message to the authenticated WhatsApp account. The service ignores bot-sent messages, groups, status broadcasts, and empty messages. Valid direct messages are inserted as `open` tickets. An acknowledgment reply is sent only when `WHATSAPP_AUTO_REPLY=true`.
+
+Automatic replies are disabled by default. Set `WHATSAPP_AUTO_REPLY=true` in `.env` only when you want the acknowledgment reply enabled, then recreate the app container:
+
+```bash
+docker compose up -d --build app
+```

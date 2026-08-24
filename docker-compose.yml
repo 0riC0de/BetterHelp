@@ -23,6 +23,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
+      WHATSAPP_AUTO_REPLY: ${WHATSAPP_AUTO_REPLY:-false}
       PUPPETEER_EXECUTABLE_PATH: /usr/bin/chromium
       DATABASE_URL: postgresql://${POSTGRES_USER:-helpdesk}:${POSTGRES_PASSWORD:-change_this_password}@postgres:5432/${POSTGRES_DB:-helpdesk}?schema=public
     ports:
