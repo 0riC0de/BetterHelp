@@ -23,7 +23,7 @@ function rememberMessage(messageId) {
 }
 
 function normalizeChatId(to) {
-  if (to.endsWith("@c.us")) {
+  if (to.endsWith("@c.us") || to.endsWith("@lid")) {
     return to;
   }
 
@@ -31,11 +31,13 @@ function normalizeChatId(to) {
 }
 
 function shouldHandleMessage(message) {
+  const isDirectChat =
+    typeof message.from === "string" &&
+    (message.from.endsWith("@c.us") || message.from.endsWith("@lid"));
+
   return (
     !message.fromMe &&
-    typeof message.from === "string" &&
-    message.from.endsWith("@c.us") &&
-    message.from !== "status@broadcast" &&
+    isDirectChat &&
     typeof message.body === "string" &&
     message.body.trim().length > 0
   );
@@ -63,7 +65,11 @@ async function handleIncomingMessage(message, eventName) {
   }
 
   const contact = await message.getContact();
-  const userPhone = message.from.replace("@c.us", "");
+  const userPhone =
+    contact.number ||
+    (message.from.endsWith("@c.us")
+      ? message.from.replace("@c.us", "")
+      : message.from);
   const userName = contact.pushname || contact.name || contact.shortName || null;
   const rawMessage = message.body.trim();
 
