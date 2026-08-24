@@ -11,9 +11,13 @@ model Ticket {
   id              Int       @id @default(autoincrement())
   userPhone       String
   userName        String?
+  pcNumber        Int?
   rawMessage      String
+  summary         String?
   status          String    @default("open")
   aiDecision      String?
+  aiConfidence    Float?
+  suggestedScript String?
   scriptExecuted  String?
   executionOutput Json?
   createdAt       DateTime  @default(now())
@@ -21,4 +25,5 @@ model Ticket {
 
   @@index([status])
   @@index([createdAt])
+  @@index([pcNumber])
 }

@@ -2,6 +2,7 @@ import qrcode from "qrcode-terminal";
 import pkg from "whatsapp-web.js";
 
 import prisma from "../db/prisma.js";
+import { triageIssueWithGemini } from "./gemini.service.js";
 
 const { Client, LocalAuth } = pkg;
 
@@ -57,6 +58,21 @@ function getUserPhone(message, contact) {
   return contact.number || contactId || message.from;
 }
 
+function createTriageReply(triage) {
+  if (triage.needsPcClarification) {
+    return "We received your request. Please reply with your computer/workstation number so IT can continue.";
+  }
+
+  const pcReference =
+    triage.pcNumber === null ? "your workstation" : `PC #${triage.pcNumber}`;
+
+  if (triage.classification === "CAN_AUTO_FIX") {
+    return `We received your request for ${pcReference}. Automated diagnostics are now running.`;
+  }
+
+  return `Your IT ticket is open for ${pcReference}. An IT technician has been notified.`;
+}
+
 async function handleIncomingMessage(message, eventName) {
   console.log("WhatsApp message event", {
     event: eventName,
@@ -83,23 +99,30 @@ async function handleIncomingMessage(message, eventName) {
   const userName = contact.pushname || contact.name || contact.shortName || null;
   const rawMessage = message.body.trim();
 
-  console.log("Creating helpdesk ticket from WhatsApp message");
+  console.log("Triaging WhatsApp helpdesk request");
+  const triage = await triageIssueWithGemini(rawMessage);
 
-  await prisma.ticket.create({
+  const ticket = await prisma.ticket.create({
     data: {
       userPhone,
       userName,
+      pcNumber: triage.pcNumber,
       rawMessage,
+      summary: triage.userFriendlySummary,
       status: "open",
+      aiDecision: triage.classification,
+      aiConfidence: triage.confidenceScore,
+      suggestedScript: triage.suggestedScript,
     },
   });
 
-  console.log("Helpdesk ticket created from WhatsApp message");
+  console.log("Triaged helpdesk ticket created", {
+    ticketId: ticket.id,
+    classification: triage.classification,
+  });
 
   if (process.env.WHATSAPP_AUTO_REPLY === "true") {
-    await message.reply(
-      "IT Bot received your request. An IT technician will review it shortly.",
-    );
+    await message.reply(createTriageReply(triage));
   }
 }
 

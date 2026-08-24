@@ -12,6 +12,7 @@
     "prisma:generate": "prisma generate"
   },
   "dependencies": {
+    "@google/genai": "^2.18.0",
     "@prisma/client": "^6.14.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
