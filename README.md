@@ -1,6 +1,6 @@
 # IT Helpdesk WhatsApp Ingress API
 
-Backend service for ticket persistence and dashboard REST access. Incoming WhatsApp messages are ingested through `whatsapp-web.js` with `LocalAuth`.
+Strict TypeScript backend for AI-assisted ticket triage, persistence, and dashboard REST access. Incoming WhatsApp messages are ingested through `whatsapp-web.js` with `LocalAuth` and classified by Gemini 2.5 Flash.
 
 ## Docker Deployment
 
@@ -21,10 +21,11 @@ Edit `.env` and set a real database password:
 POSTGRES_DB=helpdesk
 POSTGRES_USER=helpdesk
 POSTGRES_PASSWORD=change_this_password
+GEMINI_API_KEY=your_api_key_here
 WHATSAPP_AUTO_REPLY=false
 ```
 
-Use an alphanumeric password to avoid URL escaping issues in `DATABASE_URL`.
+Set a real Gemini API key and use an alphanumeric database password to avoid URL escaping issues in `DATABASE_URL`.
 
 Start everything:
 
@@ -74,6 +75,12 @@ Filter open tickets:
 curl "http://localhost:3000/api/tickets?status=open"
 ```
 
+Filter tickets by AI classification:
+
+```bash
+curl "http://localhost:3000/api/tickets?classification=CAN_AUTO_FIX"
+```
+
 ## Local Development Without Docker
 
 If you are not using Docker, install Node.js and PostgreSQL manually, then create `.env` from `.env.example`:
@@ -87,6 +94,7 @@ Set `DATABASE_URL` to your local PostgreSQL database:
 ```env
 PORT=3000
 DATABASE_URL="postgresql://postgres:your_password@localhost:5432/helpdesk?schema=public"
+GEMINI_API_KEY="your_api_key_here"
 ```
 
 Install dependencies and migrate:
@@ -97,9 +105,16 @@ npm run prisma:migrate -- --name init
 npm run dev
 ```
 
+Run strict type checking and create a production build:
+
+```bash
+npm run typecheck
+npm run build
+```
+
 ## WhatsApp Message Flow
 
-Send a direct WhatsApp message to the authenticated WhatsApp account. The service ignores bot-sent messages, groups, status broadcasts, and empty messages. Valid direct messages are inserted as `open` tickets. An acknowledgment reply is sent only when `WHATSAPP_AUTO_REPLY=true`.
+Send a direct WhatsApp message to the authenticated WhatsApp account. The service ignores bot-sent messages, groups, status broadcasts, and empty messages. Gemini extracts the workstation number, classifies the issue, selects only whitelisted scripts, and stores the result as an `open` ticket. A contextual reply is sent only when `WHATSAPP_AUTO_REPLY=true`.
 
 Automatic replies are disabled by default. Set `WHATSAPP_AUTO_REPLY=true` in `.env` only when you want the acknowledgment reply enabled, then recreate the app container:
 

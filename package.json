@@ -5,8 +5,10 @@
   "type": "module",
   "description": "WhatsApp Web ingress API for an automated IT helpdesk system.",
   "scripts": {
-    "dev": "nodemon src/server.js",
-    "start": "find . -name 'Singleton*' -delete && node src/server.js",
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/scripts/remove-whatsapp-locks.js && node dist/server.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
     "prisma:generate": "prisma generate"
@@ -22,8 +24,14 @@
     "whatsapp-web.js": "^1.26.0"
   },
   "devDependencies": {
-    "nodemon": "^3.1.9",
-    "prisma": "^6.14.0"
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/morgan": "^1.9.9",
+    "@types/node": "^22.20.1",
+    "@types/qrcode-terminal": "^0.12.2",
+    "prisma": "^6.14.0",
+    "tsx": "^4.23.12",
+    "typescript": "^5.9.2"
   },
   "engines": {
     "node": ">=20"

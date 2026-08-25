@@ -43,10 +43,13 @@ COPY prisma ./prisma
 
 RUN npm ci && npm cache clean --force
 
+COPY tsconfig.json ./
 COPY src ./src
+
+RUN npm run build
 
 ENV NODE_ENV=production
 
 EXPOSE 3000
 
-CMD ["sh", "-c", "npx prisma migrate deploy && npm start"]
+CMD ["sh", "-c", "npm run prisma:deploy && node dist/scripts/remove-whatsapp-locks.js && exec node dist/server.js"]
