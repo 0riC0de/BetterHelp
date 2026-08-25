@@ -225,6 +225,11 @@ export async function triageIssueWithGemini(
     });
     const responseText = response.text;
 
+    console.log("Gemini raw response", {
+      ...logContext,
+      responseText: responseText ?? null,
+    });
+
     if (!responseText) {
       throw new Error("Gemini returned an empty triage response");
     }
