@@ -1,6 +1,6 @@
 # IT Helpdesk WhatsApp Ingress API
 
-Strict TypeScript backend for AI-assisted ticket triage, persistence, and dashboard REST access. Incoming WhatsApp messages are ingested through `whatsapp-web.js` with `LocalAuth` and classified by Gemini 2.5 Flash.
+Strict TypeScript backend for AI-assisted ticket triage, persistence, and dashboard REST access. Incoming WhatsApp messages are ingested through `whatsapp-web.js` with `LocalAuth` and classified by Gemini 3.6 Flash.
 
 ## Docker Deployment
 

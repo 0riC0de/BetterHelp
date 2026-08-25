@@ -11,7 +11,7 @@ import {
 } from "../domain/triage.js";
 import { getErrorMessage } from "../utils/errors.js";
 
-const MODEL_NAME = "gemini-2.5-flash";
+const MODEL_NAME = "gemini-3.6-flash";
 const REQUEST_TIMEOUT_MS = 15_000;
 const MAXIMUM_PC_NUMBER = 2_147_483_647;
 const MAXIMUM_SUMMARY_LENGTH = 500;
