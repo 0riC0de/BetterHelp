@@ -82,11 +82,11 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
   }
 
   async function logout(): Promise<void> {
+    await api.logout();
     operationGenerationRef.current += 1;
     setTechnician(null);
     setStatus("unauthenticated");
     channelRef.current?.postMessage("logout");
-    await api.logout();
   }
 
   function invalidate(): void {

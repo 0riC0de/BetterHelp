@@ -1,4 +1,5 @@
 import type { TicketDto } from "../domain/ticket-view.js";
+import type { TicketMessageDto } from "../domain/ticket-message.js";
 import type { TicketUpdateReason } from "./ticket-events.js";
 
 export interface RealtimeReadyEvent {
@@ -21,6 +22,10 @@ export interface TicketUpdatedEvent extends TicketCreatedEvent {
   reason: TicketUpdateReason;
 }
 
+export interface TicketMessageEvent extends TicketCreatedEvent {
+  message: TicketMessageDto;
+}
+
 export interface RealtimeCheckpointEvent {
   protocolVersion: 1;
   streamId: string;
@@ -35,4 +40,5 @@ export interface ServerToClientEvents {
   "auth:expired": () => void;
   "ticket:created": (event: TicketCreatedEvent) => void;
   "ticket:updated": (event: TicketUpdatedEvent) => void;
+  "ticket:message": (event: TicketMessageEvent) => void;
 }

@@ -1,12 +1,17 @@
 import { EventEmitter } from "node:events";
 
 import type { TicketDto } from "../domain/ticket-view.js";
+import type { TicketMessageDto } from "../domain/ticket-message.js";
 
-export type TicketUpdateReason = "triage_completed" | "status_changed";
+export type TicketUpdateReason =
+  | "triage_completed"
+  | "status_changed"
+  | "message_received";
 
 export type TicketDomainEvent =
   | { type: "created"; ticket: TicketDto }
-  | { type: "updated"; reason: TicketUpdateReason; ticket: TicketDto };
+  | { type: "updated"; reason: TicketUpdateReason; ticket: TicketDto }
+  | { type: "message"; ticket: TicketDto; message: TicketMessageDto };
 
 type TicketEventListener = (event: TicketDomainEvent) => void;
 const eventBus = new EventEmitter();

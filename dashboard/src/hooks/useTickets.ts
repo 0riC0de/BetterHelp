@@ -13,9 +13,7 @@ const FALLBACK_POLL_INTERVAL_MS = 10_000;
 function upsertTicket(tickets: Ticket[], ticket: Ticket): Ticket[] {
   const existingIndex = tickets.findIndex((candidate) => candidate.id === ticket.id);
   if (existingIndex === -1) return [ticket, ...tickets];
-  const nextTickets = [...tickets];
-  nextTickets[existingIndex] = ticket;
-  return nextTickets;
+  return [ticket, ...tickets.filter((candidate) => candidate.id !== ticket.id)];
 }
 
 interface UseTicketsResult {
@@ -126,6 +124,9 @@ export function useTickets(onUnauthorized: () => void): UseTicketsResult {
       else setTickets((current) => upsertTicket(current, event.ticket));
     },
     onGap: () => void synchronize(),
+    onMessage: (event) => {
+      setTickets((current) => upsertTicket(current, event.ticket));
+    },
     onStatus: (status) => {
       if (status === "reconnecting") isRealtimeConnectedRef.current = false;
       setConnectionStatus(status);

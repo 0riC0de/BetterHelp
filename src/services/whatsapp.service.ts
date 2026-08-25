@@ -18,8 +18,15 @@ import {
 } from "../domain/ticket-view.js";
 import type { TriageResult } from "../domain/triage.js";
 import { publishTicketEvent } from "../realtime/ticket-events.js";
+import { HttpError } from "../errors/http-error.js";
 import { getErrorMessage } from "../utils/errors.js";
 import { triageIssueWithGemini } from "./gemini.service.js";
+import {
+  acceptIncomingMessage,
+  createPendingOutgoingMessage,
+  markOutgoingMessage,
+  recordAutomaticReply,
+} from "./ticket.service.js";
 
 const { Client, LocalAuth } = WhatsAppWeb;
 
@@ -30,6 +37,7 @@ const DIRECT_CHAT_SUFFIXES = ["@c.us", "@lid"] as const;
 type WhatsAppClient = InstanceType<typeof Client>;
 
 interface IncomingTicketRequest {
+  chatId: string;
   userPhone: string;
   userName: string | null;
   rawMessage: string;
@@ -146,6 +154,7 @@ async function extractTicketRequest(
   const contact = await getContactWithTimeout(message, messageReference);
 
   return {
+    chatId: message.from,
     userPhone: getUserPhone(message, contact),
     userName: getUserName(contact),
     rawMessage: message.body.trim(),
@@ -165,22 +174,6 @@ function createTriageReply(triage: TriageResult): string {
   }
 
   return `Your IT ticket is open for ${pcReference}. An IT technician has been notified.`;
-}
-
-async function createPendingTicket(
-  request: IncomingTicketRequest,
-): Promise<TicketDto> {
-  const ticket = await prisma.ticket.create({
-    data: {
-      userPhone: request.userPhone,
-      userName: request.userName,
-      rawMessage: request.rawMessage,
-      status: "open",
-    },
-    select: TICKET_VIEW_SELECT,
-  });
-
-  return toTicketDto(ticket);
 }
 
 async function saveTicketTriage(
@@ -242,9 +235,25 @@ export async function handleIncomingMessage(message: Message): Promise<void> {
 
   try {
     request = await extractTicketRequest(message, messageReference);
-    const ticket = await createPendingTicket(request);
-    ticketId = ticket.id;
-    publishTicketEvent({ type: "created", ticket });
+    const accepted = await acceptIncomingMessage({
+      chatId: request.chatId,
+      userPhone: request.userPhone,
+      userName: request.userName,
+      body: request.rawMessage,
+      externalMessageId: messageId ?? null,
+      occurredAt: new Date(message.timestamp * 1_000),
+    });
+    ticketId = accepted.ticket.id;
+    if (!accepted.isNew) return;
+    if (accepted.isNewTicket) {
+      publishTicketEvent({ type: "created", ticket: accepted.ticket });
+    }
+    publishTicketEvent({
+      type: "message",
+      ticket: accepted.ticket,
+      message: accepted.message,
+    });
+    if (!accepted.isNewTicket) return;
   } catch (error: unknown) {
     if (messageId) {
       processedMessageIds.delete(messageId);
@@ -290,7 +299,22 @@ export async function handleIncomingMessage(message: Message): Promise<void> {
   });
 
   if (shouldSendWhatsAppAutoReplies()) {
-    await message.reply(createTriageReply(triage));
+    const replyText = createTriageReply(triage);
+    const reply = await message.reply(replyText);
+    const replyMessage = await recordAutomaticReply(
+      ticketId,
+      replyText,
+      reply.id?._serialized ?? null,
+    );
+    const ticket = await prisma.ticket.findUniqueOrThrow({
+      where: { id: ticketId },
+      select: TICKET_VIEW_SELECT,
+    });
+    publishTicketEvent({
+      type: "message",
+      ticket: toTicketDto(ticket),
+      message: replyMessage,
+    });
     console.log("WhatsApp triage reply sent", { messageReference, ticketId });
   }
 }
@@ -427,6 +451,58 @@ export async function sendWhatsAppMessage(
   }
 
   return client.sendMessage(normalizeChatId(recipient), text);
+}
+
+export async function sendTicketReply(
+  ticketId: number,
+  technicianId: number,
+  text: string,
+  clientRequestId: string,
+) {
+  const pending = await createPendingOutgoingMessage(
+    ticketId,
+    technicianId,
+    text,
+    clientRequestId,
+  );
+  if (!pending.isNew) return pending.message;
+
+  const pendingMessage =
+    pending.message.deliveryStatus === "PENDING"
+      ? pending.message
+      : await markOutgoingMessage(pending.message.id, "PENDING");
+
+  publishTicketEvent({
+    type: "message",
+    ticket: pending.ticket,
+    message: pendingMessage,
+  });
+  let sent: Message;
+  try {
+    sent = await sendWhatsAppMessage(
+      pending.ticket.chatId ?? pending.ticket.userPhone,
+      text,
+    );
+  } catch (error: unknown) {
+    const message = await markOutgoingMessage(pending.message.id, "FAILED");
+    publishTicketEvent({ type: "message", ticket: pending.ticket, message });
+    throw new HttpError(503, `WhatsApp message could not be sent: ${getErrorMessage(error)}`);
+  }
+
+  try {
+    const message = await markOutgoingMessage(
+      pending.message.id,
+      "SENT",
+      sent.id?._serialized,
+    );
+    publishTicketEvent({ type: "message", ticket: pending.ticket, message });
+    return message;
+  } catch (error: unknown) {
+    throw new HttpError(
+      500,
+      `WhatsApp delivered the message but history could not be updated: ${getErrorMessage(error)}`,
+    );
+  }
 }
 
 export async function destroyWhatsApp(): Promise<void> {

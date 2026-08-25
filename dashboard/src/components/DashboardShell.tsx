@@ -1,60 +1,56 @@
 "use client";
 
 import { startTransition, useDeferredValue, useEffect, useState } from "react";
-import { Alert, Container, Snackbar, Stack, Typography } from "@mui/material";
-import { useRouter } from "next/navigation";
+import { Alert, Chip, Container, Snackbar, Stack, Typography } from "@mui/material";
 
 import { useTickets } from "@/hooks/useTickets";
 import { useAuth } from "@/providers/AuthProvider";
-import type { Technician } from "@/types/auth";
 import type { TicketFiltersState } from "@/types/ticket";
 import { filterTickets } from "@/utils/tickets";
 
-import Header from "./Header";
 import MetricsOverview from "./MetricsOverview";
 import TicketFilters from "./TicketFilters";
 import TicketList, { EMPTY_FILTERS } from "./TicketList";
+import DashboardSkeleton from "./DashboardSkeleton";
 
-export default function DashboardShell({ technician }: { technician: Technician }) {
-  const router = useRouter();
+export default function DashboardShell() {
   const auth = useAuth();
   const ticketState = useTickets(auth.invalidate);
   const [filters, setFilters] = useState<TicketFiltersState>(EMPTY_FILTERS);
   const [now, setNow] = useState(() => Date.now());
   const deferredSearch = useDeferredValue(filters.search);
   const visibleTickets = filterTickets(ticketState.tickets, filters, deferredSearch);
+  const connectionLabel = {
+    live: "Live",
+    syncing: "Syncing",
+    reconnecting: "Reconnecting",
+    polling: "REST fallback",
+    offline: "Offline",
+  }[ticketState.connectionStatus];
 
   useEffect(() => {
     const interval = setInterval(() => setNow(Date.now()), 60_000);
     return () => clearInterval(interval);
   }, []);
 
-  async function handleLogout(): Promise<void> {
-    try {
-      await auth.logout();
-    } finally {
-      router.replace("/login");
-    }
-  }
-
   function handleFiltersChange(nextFilters: TicketFiltersState): void {
     startTransition(() => setFilters(nextFilters));
   }
 
+  if (ticketState.isLoading) return <DashboardSkeleton />;
+
   return (
     <>
-      <Header
-        connectionStatus={ticketState.connectionStatus}
-        technician={technician}
-        onLogout={handleLogout}
-      />
       <Container component="main" maxWidth="xl" sx={{ py: { xs: 3, md: 4 } }}>
         <Stack spacing={3}>
-          <Stack spacing={0.5}>
-            <Typography variant="h4">Ticket Operations</Typography>
+          <Stack direction="row" sx={{ alignItems: "flex-start", justifyContent: "space-between" }}>
+            <Stack spacing={0.5}>
+              <Typography variant="h4">Ticket Operations</Typography>
             <Typography color="text.secondary">
               Live intake, Gemini triage, and technician resolution in one feed.
             </Typography>
+            </Stack>
+            <Chip size="small" label={connectionLabel} />
           </Stack>
 
           <MetricsOverview tickets={ticketState.tickets} />

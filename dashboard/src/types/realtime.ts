@@ -1,4 +1,4 @@
-import type { Ticket } from "./ticket";
+import type { Ticket, TicketMessage } from "./ticket";
 
 export type ConnectionStatus =
   | "syncing"
@@ -24,7 +24,11 @@ export interface TicketCreatedEvent {
 }
 
 export interface TicketUpdatedEvent extends TicketCreatedEvent {
-  reason: "triage_completed" | "status_changed";
+  reason: "triage_completed" | "status_changed" | "message_received";
+}
+
+export interface TicketMessageEvent extends TicketCreatedEvent {
+  message: TicketMessage;
 }
 
 export interface RealtimeCheckpointEvent {
@@ -41,6 +45,7 @@ export interface ServerToClientEvents {
   "auth:expired": () => void;
   "ticket:created": (event: TicketCreatedEvent) => void;
   "ticket:updated": (event: TicketUpdatedEvent) => void;
+  "ticket:message": (event: TicketMessageEvent) => void;
 }
 
 export type TicketRealtimeEvent = TicketCreatedEvent | TicketUpdatedEvent;

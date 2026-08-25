@@ -13,6 +13,7 @@ import {
 } from "./config/environment.js";
 import authRouter from "./routes/auth.routes.js";
 import ticketRouter from "./routes/ticket.routes.js";
+import technicianRouter from "./routes/technician.routes.js";
 import { isDashboardOriginAllowed } from "./security/origins.js";
 
 interface HealthResponse {
@@ -75,6 +76,7 @@ app.use(morgan(isProductionEnvironment() ? "combined" : "dev"));
 
 app.get("/health", getHealth);
 app.use("/api/auth", authRouter);
+app.use("/api/technicians", technicianRouter);
 app.use("/api", ticketRouter);
 app.use(handleNotFound);
 app.use(handleError);

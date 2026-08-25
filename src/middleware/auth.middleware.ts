@@ -37,3 +37,15 @@ export async function requireTechnician(
     next(error);
   }
 }
+
+export function requireAdmin(
+  _req: Request,
+  res: Response<unknown, AuthLocals>,
+  next: NextFunction,
+): void {
+  if (res.locals.technician.role !== "ADMIN") {
+    next(new HttpError(403, "Administrator access is required"));
+    return;
+  }
+  next();
+}

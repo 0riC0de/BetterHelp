@@ -12,8 +12,21 @@ enum TechnicianRole {
   TECHNICIAN
 }
 
+enum MessageDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum MessageDeliveryStatus {
+  RECEIVED
+  PENDING
+  SENT
+  FAILED
+}
+
 model Ticket {
   id              Int       @id @default(autoincrement())
+  chatId          String?
   userPhone       String
   userName        String?
   pcNumber        Int?
@@ -26,10 +39,13 @@ model Ticket {
   scriptExecuted  String?
   executionOutput Json?
   createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @default(now()) @updatedAt
   resolvedAt      DateTime?
+  messages        TicketMessage[]
 
   @@index([status])
   @@index([createdAt])
+  @@index([chatId, status])
   @@index([pcNumber])
 }
 
@@ -44,6 +60,25 @@ model Technician {
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
   refreshTokens RefreshToken[]
+  messages      TicketMessage[]
+}
+
+model TicketMessage {
+  id                 Int                   @id @default(autoincrement())
+  ticketId           Int
+  technicianId       Int?
+  direction          MessageDirection
+  body               String
+  deliveryStatus     MessageDeliveryStatus
+  externalMessageId  String?               @unique
+  clientRequestId    String?               @unique
+  sentAt             DateTime?
+  createdAt          DateTime               @default(now())
+  ticket             Ticket                 @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  technician         Technician?            @relation(fields: [technicianId], references: [id], onDelete: SetNull)
+
+  @@index([ticketId, createdAt, id])
+  @@index([technicianId])
 }
 
 model RefreshToken {

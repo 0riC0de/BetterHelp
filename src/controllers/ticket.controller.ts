@@ -3,12 +3,20 @@ import type { NextFunction, Request, Response } from "express";
 
 import { isTicketStatus, type TicketStatus } from "../domain/ticket.js";
 import type { TicketDto } from "../domain/ticket-view.js";
+import type { TicketMessageDto } from "../domain/ticket-message.js";
 import {
   isTriageClassification,
   type TriageClassification,
 } from "../domain/triage.js";
 import { HttpError } from "../errors/http-error.js";
-import { changeTicketStatus, listTickets } from "../services/ticket.service.js";
+import type { AuthLocals } from "../middleware/auth.middleware.js";
+import {
+  changeTicketStatus,
+  getTicketConversation,
+  listTickets,
+  type TicketConversation,
+} from "../services/ticket.service.js";
+import { sendTicketReply } from "../services/whatsapp.service.js";
 
 const INVALID_STATUS_MESSAGE =
   "Invalid status filter. Use open, in_progress, or resolved.";
@@ -21,6 +29,11 @@ interface TicketListResponse {
 
 interface UpdateStatusBody {
   status?: unknown;
+}
+
+interface SendMessageBody {
+  text?: unknown;
+  clientRequestId?: unknown;
 }
 
 type ValueGuard<T extends string> = (value: unknown) => value is T;
@@ -96,6 +109,48 @@ export async function updateTicketStatus(
       req.body.status,
     );
     res.json(ticket);
+  } catch (error: unknown) {
+    next(error);
+  }
+}
+
+export async function getTicket(
+  req: Request<{ id: string }>,
+  res: Response<TicketConversation>,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    res.json(await getTicketConversation(parseTicketId(req.params.id)));
+  } catch (error: unknown) {
+    next(error);
+  }
+}
+
+export async function sendTicketMessage(
+  req: Request<{ id: string }, TicketMessageDto, SendMessageBody>,
+  res: Response<TicketMessageDto, AuthLocals>,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const text = typeof req.body.text === "string" ? req.body.text.trim() : "";
+    const clientRequestId =
+      typeof req.body.clientRequestId === "string"
+        ? req.body.clientRequestId.trim()
+        : "";
+    if (!text || text.length > 4_000) {
+      throw new HttpError(400, "Message must contain between 1 and 4000 characters");
+    }
+    if (clientRequestId.length < 8 || clientRequestId.length > 100) {
+      throw new HttpError(400, "A valid client request ID is required");
+    }
+    res.status(201).json(
+      await sendTicketReply(
+        parseTicketId(req.params.id),
+        res.locals.technician.id,
+        text,
+        clientRequestId,
+      ),
+    );
   } catch (error: unknown) {
     next(error);
   }

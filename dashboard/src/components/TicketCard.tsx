@@ -1,16 +1,18 @@
 import CheckCircleOutline from "@mui/icons-material/CheckCircleOutlineOutlined";
 import ReplayOutlined from "@mui/icons-material/ReplayOutlined";
+import ChatOutlined from "@mui/icons-material/ChatOutlined";
 import {
   Box,
   Button,
   Card,
   CardActions,
   CardContent,
-  CircularProgress,
+  Skeleton,
   Stack,
   Tooltip,
   Typography,
 } from "@mui/material";
+import Link from "next/link";
 
 import type { Ticket, TicketStatus } from "@/types/ticket";
 import {
@@ -49,7 +51,7 @@ export default function TicketCard({
               AI issue summary
             </Typography>
             <Typography variant="h6" dir="auto" sx={{ fontSize: { xs: 17, sm: 19 } }}>
-              {ticket.summary ?? "Gemini triage is still preparing the issue summary."}
+              {ticket.summary ?? <Skeleton width="72%" />}
             </Typography>
           </Box>
 
@@ -73,15 +75,16 @@ export default function TicketCard({
       </CardContent>
 
       <TicketDetails ticket={ticket} />
-      <CardActions sx={{ justifyContent: "flex-end", px: 2, py: 1.5 }}>
+      <CardActions sx={{ justifyContent: "flex-end", flexWrap: "wrap", px: 2, py: 1.5 }}>
+        <Button component={Link} href={`/tickets/${ticket.id}`} startIcon={<ChatOutlined />}>
+          Conversation
+        </Button>
         <Button
           variant={isResolved ? "outlined" : "contained"}
           color={isResolved ? "primary" : "success"}
           disabled={isPending}
           startIcon={
-            isPending ? (
-              <CircularProgress color="inherit" size={16} />
-            ) : isResolved ? (
+            isResolved ? (
               <ReplayOutlined />
             ) : (
               <CheckCircleOutline />

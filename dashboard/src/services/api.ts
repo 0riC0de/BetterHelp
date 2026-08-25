@@ -4,8 +4,15 @@ import type {
   HealthResponse,
   Ticket,
   TicketListResponse,
+  TicketConversation,
+  TicketMessage,
   TicketStatus,
 } from "@/types/ticket";
+import type {
+  CreateTechnicianInput,
+  ManagedTechnician,
+  TechnicianListResponse,
+} from "@/types/technician";
 
 const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000").replace(
   /\/$/,
@@ -177,6 +184,39 @@ export function updateTicketStatus(
     method: "PATCH",
     body: JSON.stringify({ status }),
   });
+}
+
+export function getTicket(ticketId: number): Promise<TicketConversation> {
+  return request<TicketConversation>(`/api/tickets/${ticketId}`);
+}
+
+export function sendTicketMessage(
+  ticketId: number,
+  text: string,
+  clientRequestId: string,
+): Promise<TicketMessage> {
+  return request<TicketMessage>(`/api/tickets/${ticketId}/messages`, {
+    method: "POST",
+    body: JSON.stringify({ text, clientRequestId }),
+  });
+}
+
+export async function getTechnicians(): Promise<ManagedTechnician[]> {
+  const response = await request<TechnicianListResponse>("/api/technicians");
+  return response.technicians;
+}
+
+export function createTechnician(
+  input: CreateTechnicianInput,
+): Promise<ManagedTechnician> {
+  return request<ManagedTechnician>("/api/technicians", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function deleteTechnician(technicianId: number): Promise<void> {
+  return request<void>(`/api/technicians/${technicianId}`, { method: "DELETE" });
 }
 
 export { API_URL };

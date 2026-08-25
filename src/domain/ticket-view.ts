@@ -5,6 +5,7 @@ import type { TriageClassification } from "./triage.js";
 
 export const TICKET_VIEW_SELECT = {
   id: true,
+  chatId: true,
   userPhone: true,
   userName: true,
   pcNumber: true,
@@ -17,6 +18,7 @@ export const TICKET_VIEW_SELECT = {
   scriptExecuted: true,
   executionOutput: true,
   createdAt: true,
+  updatedAt: true,
   resolvedAt: true,
 } satisfies Prisma.TicketSelect;
 
@@ -26,6 +28,7 @@ export type TicketRecord = Prisma.TicketGetPayload<{
 
 export interface TicketDto {
   id: number;
+  chatId: string | null;
   userPhone: string;
   userName: string | null;
   pcNumber: number | null;
@@ -38,6 +41,7 @@ export interface TicketDto {
   scriptExecuted: string | null;
   executionOutput: Prisma.JsonValue | null;
   createdAt: string;
+  updatedAt: string;
   resolvedAt: string | null;
 }
 
@@ -47,6 +51,7 @@ export function toTicketDto(ticket: TicketRecord): TicketDto {
     status: ticket.status as TicketStatus,
     aiDecision: ticket.aiDecision as TriageClassification | null,
     createdAt: ticket.createdAt.toISOString(),
+    updatedAt: ticket.updatedAt.toISOString(),
     resolvedAt: ticket.resolvedAt?.toISOString() ?? null,
   };
 }

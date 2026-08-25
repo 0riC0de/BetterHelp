@@ -6,6 +6,7 @@ import { filterTickets, getTicketMetrics } from "./tickets";
 
 const ticket: Ticket = {
   id: 1,
+  chatId: "972501234567@c.us",
   userPhone: "972501234567",
   userName: "Dana Cohen",
   pcNumber: 4,
@@ -18,6 +19,7 @@ const ticket: Ticket = {
   scriptExecuted: null,
   executionOutput: null,
   createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
   resolvedAt: null,
 };
 

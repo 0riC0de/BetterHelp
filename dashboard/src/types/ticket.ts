@@ -18,6 +18,7 @@ export type JsonValue =
 
 export interface Ticket {
   id: number;
+  chatId: string | null;
   userPhone: string;
   userName: string | null;
   pcNumber: number | null;
@@ -30,7 +31,29 @@ export interface Ticket {
   scriptExecuted: string | null;
   executionOutput: JsonValue | null;
   createdAt: string;
+  updatedAt: string;
   resolvedAt: string | null;
+}
+
+export type MessageDirection = "INBOUND" | "OUTBOUND";
+export type MessageDeliveryStatus = "RECEIVED" | "PENDING" | "SENT" | "FAILED";
+
+export interface TicketMessage {
+  id: number;
+  ticketId: number;
+  technicianId: number | null;
+  technicianName: string | null;
+  direction: MessageDirection;
+  body: string;
+  deliveryStatus: MessageDeliveryStatus;
+  clientRequestId: string | null;
+  sentAt: string | null;
+  createdAt: string;
+}
+
+export interface TicketConversation {
+  ticket: Ticket;
+  messages: TicketMessage[];
 }
 
 export interface TicketListResponse {

@@ -1,8 +1,7 @@
 import AutoFixHighOutlined from "@mui/icons-material/AutoFixHighOutlined";
 import DesktopWindowsOutlined from "@mui/icons-material/DesktopWindowsOutlined";
 import EngineeringOutlined from "@mui/icons-material/EngineeringOutlined";
-import HourglassTopOutlined from "@mui/icons-material/HourglassTopOutlined";
-import { Chip, Stack, Typography } from "@mui/material";
+import { Chip, Skeleton, Stack, Typography } from "@mui/material";
 
 import type { AiDecision, Ticket } from "@/types/ticket";
 
@@ -33,12 +32,7 @@ const classificationPresentation: Record<
 export default function TicketTriage({ ticket }: { ticket: Ticket }) {
   if (!ticket.aiDecision) {
     return (
-      <Chip
-        size="small"
-        icon={<HourglassTopOutlined />}
-        label="AI triage pending"
-        sx={{ bgcolor: "#f1f5f9", color: "text.secondary" }}
-      />
+      <Skeleton variant="rounded" width={150} height={28} aria-label="AI triage pending" />
     );
   }
 

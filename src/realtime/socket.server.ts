@@ -9,9 +9,11 @@ import type { AuthenticatedTechnician } from "../domain/auth.js";
 import { readCookie } from "../middleware/auth.middleware.js";
 import { isDashboardOriginAllowed } from "../security/origins.js";
 import { authenticateTechnician } from "../services/auth.service.js";
+import { subscribeToTechnicianRevoked } from "./auth-events.js";
 import type {
   ServerToClientEvents,
   TicketCreatedEvent,
+  TicketMessageEvent,
   TicketUpdatedEvent,
 } from "./contracts.js";
 import {
@@ -107,10 +109,23 @@ export function createRealtimeServer(httpServer: HttpServer): RealtimeServer {
       return;
     }
 
+    if (event.type === "message") {
+      dashboard.emit("ticket:message", {
+        ...baseEvent,
+        message: event.message,
+      } satisfies TicketMessageEvent);
+      return;
+    }
+
     dashboard.emit("ticket:updated", {
       ...baseEvent,
       reason: event.reason,
     } satisfies TicketUpdatedEvent);
+  });
+  const unsubscribeFromRevocations = subscribeToTechnicianRevoked((technicianId) => {
+    for (const socket of dashboard.sockets.values()) {
+      if (socket.data.technician.id === technicianId) socket.disconnect(true);
+    }
   });
 
   const checkpointTimer = setInterval(() => {
@@ -127,6 +142,7 @@ export function createRealtimeServer(httpServer: HttpServer): RealtimeServer {
     close: () =>
       new Promise((resolve, reject) => {
         unsubscribe();
+        unsubscribeFromRevocations();
         clearInterval(checkpointTimer);
         dashboard.emit("realtime:shutdown", {
           retryAfterMs: SHUTDOWN_RETRY_MS,

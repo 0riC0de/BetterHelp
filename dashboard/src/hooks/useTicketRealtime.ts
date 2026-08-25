@@ -8,6 +8,7 @@ import type {
   ConnectionStatus,
   RealtimeReadyEvent,
   TicketRealtimeEvent,
+  TicketMessageEvent,
 } from "@/types/realtime";
 
 interface RealtimeOptions {
@@ -16,6 +17,7 @@ interface RealtimeOptions {
   onGap: () => void;
   onStatus: (status: ConnectionStatus) => void;
   onUnauthorized: () => void;
+  onMessage?: (event: TicketMessageEvent) => void;
 }
 
 function isUnauthorizedError(error: Error & { data?: unknown }): boolean {
@@ -33,6 +35,7 @@ export function useTicketRealtime(options: RealtimeOptions): void {
   const handleGap = useEffectEvent(options.onGap);
   const handleStatus = useEffectEvent(options.onStatus);
   const handleUnauthorized = useEffectEvent(options.onUnauthorized);
+  const handleMessage = useEffectEvent(options.onMessage ?? (() => undefined));
   const streamIdRef = useRef<string | undefined>(undefined);
   const sequenceRef = useRef(0);
 
@@ -71,19 +74,22 @@ export function useTicketRealtime(options: RealtimeOptions): void {
         });
     }
 
-    function acceptTicketEvent(event: TicketRealtimeEvent): void {
+    function acceptEvent(
+      event: TicketRealtimeEvent | TicketMessageEvent,
+      accept: () => void,
+    ): void {
       if (event.streamId !== streamIdRef.current) {
         streamIdRef.current = event.streamId;
         sequenceRef.current = event.sequence;
         handleGap();
-        handleTicket(event);
+        accept();
         return;
       }
 
       if (event.sequence <= sequenceRef.current) return;
       if (event.sequence !== sequenceRef.current + 1) handleGap();
       sequenceRef.current = event.sequence;
-      handleTicket(event);
+      accept();
     }
 
     socket.on("realtime:ready", (event) => {
@@ -91,8 +97,9 @@ export function useTicketRealtime(options: RealtimeOptions): void {
       sequenceRef.current = event.lastSequence;
       handleReady(event);
     });
-    socket.on("ticket:created", acceptTicketEvent);
-    socket.on("ticket:updated", acceptTicketEvent);
+    socket.on("ticket:created", (event) => acceptEvent(event, () => handleTicket(event)));
+    socket.on("ticket:updated", (event) => acceptEvent(event, () => handleTicket(event)));
+    socket.on("ticket:message", (event) => acceptEvent(event, () => handleMessage(event)));
     socket.on("realtime:checkpoint", (event) => {
       if (
         event.streamId !== streamIdRef.current ||

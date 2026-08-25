@@ -16,6 +16,7 @@ import { changeTicketStatus } from "../src/services/ticket.service.js";
 function ticketRecord(status: string, resolvedAt: Date | null) {
   return {
     id: 7,
+    chatId: "972501234567@c.us",
     userPhone: "972501234567",
     userName: "Test Reporter",
     pcNumber: 4,
@@ -28,6 +29,7 @@ function ticketRecord(status: string, resolvedAt: Date | null) {
     scriptExecuted: null,
     executionOutput: null,
     createdAt: new Date("2026-08-25T08:00:00.000Z"),
+    updatedAt: new Date("2026-08-25T08:05:00.000Z"),
     resolvedAt,
   };
 }

@@ -10,7 +10,6 @@ import {
   Button,
   Card,
   CardContent,
-  CircularProgress,
   Stack,
   TextField,
   Typography,
@@ -19,6 +18,7 @@ import { useRouter } from "next/navigation";
 
 import { ApiError } from "@/services/api";
 import { useAuth } from "@/providers/AuthProvider";
+import LoginPageSkeleton from "@/components/LoginPageSkeleton";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -49,6 +49,8 @@ export default function LoginPage() {
       setIsSubmitting(false);
     }
   }
+
+  if (auth.status === "loading") return <LoginPageSkeleton />;
 
   return (
     <Box
@@ -124,7 +126,6 @@ export default function LoginPage() {
                   variant="contained"
                   size="large"
                   disabled={isSubmitting}
-                  startIcon={isSubmitting ? <CircularProgress size={17} color="inherit" /> : null}
                 >
                   {isSubmitting ? "Signing in" : "Sign in"}
                 </Button>

@@ -52,6 +52,7 @@ describe("dashboard WebSocket", () => {
       type: "created",
       ticket: {
         id: 9,
+        chatId: "972501234567@c.us",
         userPhone: "972501234567",
         userName: null,
         pcNumber: null,
@@ -64,6 +65,7 @@ describe("dashboard WebSocket", () => {
         scriptExecuted: null,
         executionOutput: null,
         createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
         resolvedAt: null,
       },
     });
