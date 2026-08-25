@@ -19,6 +19,8 @@ export type JsonValue =
 export interface Ticket {
   id: number;
   chatId: string | null;
+  profilePictureUrl: string | null;
+  machineId: number | null;
   userPhone: string;
   userName: string | null;
   pcNumber: number | null;
@@ -33,6 +35,7 @@ export interface Ticket {
   createdAt: string;
   updatedAt: string;
   resolvedAt: string | null;
+  archivedAt: string | null;
 }
 
 export type MessageDirection = "INBOUND" | "OUTBOUND";
@@ -49,6 +52,9 @@ export interface TicketMessage {
   clientRequestId: string | null;
   sentAt: string | null;
   createdAt: string;
+  mediaMimeType: string | null;
+  mediaData: string | null;
+  mediaFileName: string | null;
 }
 
 export interface TicketConversation {
@@ -67,7 +73,9 @@ export interface TicketFiltersState {
 }
 
 export interface TicketMetrics {
+  active: number;
   open: number;
+  inProgress: number;
   autoFixable: number;
   remoteTakeover: number;
   resolvedToday: number;

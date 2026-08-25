@@ -6,7 +6,8 @@ import type { TicketMessageDto } from "../domain/ticket-message.js";
 export type TicketUpdateReason =
   | "triage_completed"
   | "status_changed"
-  | "message_received";
+  | "message_received"
+  | "archive_changed";
 
 export type TicketDomainEvent =
   | { type: "created"; ticket: TicketDto }

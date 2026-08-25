@@ -43,6 +43,9 @@ const ticket = {
   createdAt: "2026-08-25T08:00:00.000Z",
   updatedAt: "2026-08-25T08:05:00.000Z",
   resolvedAt: "2026-08-25T08:05:00.000Z",
+  profilePictureUrl: null,
+  machineId: null,
+  archivedAt: null,
 };
 const message = {
   id: 12,
@@ -108,6 +111,7 @@ describe("helpdesk HTTP API", () => {
     expect(ticketService.listTickets).toHaveBeenCalledWith({
       status: "resolved",
       aiDecision: "CAN_AUTO_FIX",
+      archivedAt: null,
     });
     expect(response.body).toEqual({ tickets: [ticket] });
   });

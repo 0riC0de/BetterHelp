@@ -14,6 +14,9 @@ export const TICKET_MESSAGE_SELECT = {
   externalMessageId: true,
   clientRequestId: true,
   sentAt: true,
+  mediaMimeType: true,
+  mediaData: true,
+  mediaFileName: true,
   createdAt: true,
   technician: { select: { name: true } },
 } satisfies Prisma.TicketMessageSelect;
@@ -32,6 +35,9 @@ export interface TicketMessageDto {
   deliveryStatus: MessageDeliveryStatus;
   clientRequestId: string | null;
   sentAt: string | null;
+  mediaMimeType: string | null;
+  mediaData: string | null;
+  mediaFileName: string | null;
   createdAt: string;
 }
 
@@ -46,6 +52,9 @@ export function toTicketMessageDto(message: TicketMessageRecord): TicketMessageD
     deliveryStatus: message.deliveryStatus,
     clientRequestId: message.clientRequestId,
     sentAt: message.sentAt?.toISOString() ?? null,
+    mediaMimeType: message.mediaMimeType,
+    mediaData: message.mediaData,
+    mediaFileName: message.mediaFileName,
     createdAt: message.createdAt.toISOString(),
   };
 }

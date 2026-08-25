@@ -13,6 +13,7 @@ import type {
   ManagedTechnician,
   TechnicianListResponse,
 } from "@/types/technician";
+import type { Machine, MachineInput } from "@/types/machine";
 
 const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000").replace(
   /\/$/,
@@ -168,10 +169,12 @@ export function getHealth(): Promise<HealthResponse> {
 export function getTickets(filters?: {
   status?: TicketStatus;
   classification?: AiDecision;
+  archive?: "active" | "archived" | "all";
 }): Promise<TicketListResponse> {
   const query = new URLSearchParams();
   if (filters?.status) query.set("status", filters.status);
   if (filters?.classification) query.set("classification", filters.classification);
+  if (filters?.archive) query.set("archive", filters.archive);
   const suffix = query.size ? `?${query.toString()}` : "";
   return request<TicketListResponse>(`/api/tickets${suffix}`);
 }
@@ -183,6 +186,13 @@ export function updateTicketStatus(
   return request<Ticket>(`/api/tickets/${ticketId}/status`, {
     method: "PATCH",
     body: JSON.stringify({ status }),
+  });
+}
+
+export function updateTicketArchive(ticketId: number, archived: boolean): Promise<Ticket> {
+  return request<Ticket>(`/api/tickets/${ticketId}/archive`, {
+    method: "PATCH",
+    body: JSON.stringify({ archived }),
   });
 }
 
@@ -198,6 +208,7 @@ export function sendTicketMessage(
   return request<TicketMessage>(`/api/tickets/${ticketId}/messages`, {
     method: "POST",
     body: JSON.stringify({ text, clientRequestId }),
+    signal: AbortSignal.timeout(45_000),
   });
 }
 
@@ -217,6 +228,45 @@ export function createTechnician(
 
 export function deleteTechnician(technicianId: number): Promise<void> {
   return request<void>(`/api/technicians/${technicianId}`, { method: "DELETE" });
+}
+
+export function resetTechnicianPassword(
+  technicianId: number,
+  password: string,
+): Promise<void> {
+  return request<void>(`/api/technicians/${technicianId}/password`, {
+    method: "PATCH",
+    body: JSON.stringify({ password }),
+  });
+}
+
+export async function getMachines(): Promise<Machine[]> {
+  const response = await request<{ machines: Machine[] }>("/api/machines");
+  return response.machines;
+}
+
+export function createMachine(input: MachineInput): Promise<Machine> {
+  return request<Machine>("/api/machines", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function updateMachine(machineId: number, input: MachineInput): Promise<Machine> {
+  return request<Machine>(`/api/machines/${machineId}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+export function deleteMachine(machineId: number): Promise<void> {
+  return request<void>(`/api/machines/${machineId}`, { method: "DELETE" });
+}
+
+export function wakeMachine(machineId: number): Promise<{ message: string }> {
+  return request<{ message: string }>(`/api/machines/${machineId}/wake`, {
+    method: "POST",
+  });
 }
 
 export { API_URL };

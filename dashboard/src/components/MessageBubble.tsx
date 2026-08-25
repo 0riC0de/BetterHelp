@@ -18,7 +18,17 @@ export default function MessageBubble({ message }: { message: TicketMessage }) {
           overflowWrap: "anywhere",
         }}
       >
+        {message.mediaData && message.mediaMimeType?.startsWith("image/") && (
+          <Box
+            component="img"
+            src={`data:${message.mediaMimeType};base64,${message.mediaData}`}
+            alt={message.mediaFileName ?? "WhatsApp image"}
+            sx={{ display: "block", maxWidth: "100%", maxHeight: 360, borderRadius: 2, mb: message.body === "[Image]" ? 0 : 1 }}
+          />
+        )}
+        {message.body !== "[Image]" && (
         <Typography sx={{ whiteSpace: "pre-wrap" }}>{message.body}</Typography>
+        )}
       </Box>
       <Stack direction="row" spacing={1} sx={{ mt: 0.5, justifyContent: outbound ? "flex-end" : "flex-start" }}>
         <Typography variant="caption" color="text.secondary">

@@ -24,9 +24,16 @@ enum MessageDeliveryStatus {
   FAILED
 }
 
+enum WakeAttemptStatus {
+  PACKET_SENT
+  SEND_FAILED
+}
+
 model Ticket {
   id              Int       @id @default(autoincrement())
   chatId          String?
+  profilePictureUrl String?
+  machineId       Int?
   userPhone       String
   userName        String?
   pcNumber        Int?
@@ -41,11 +48,15 @@ model Ticket {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @default(now()) @updatedAt
   resolvedAt      DateTime?
+  archivedAt      DateTime?
   messages        TicketMessage[]
+  machine         Machine?   @relation(fields: [machineId], references: [id], onDelete: SetNull)
 
   @@index([status])
   @@index([createdAt])
   @@index([chatId, status])
+  @@index([archivedAt, updatedAt])
+  @@index([machineId])
   @@index([pcNumber])
 }
 
@@ -61,6 +72,7 @@ model Technician {
   updatedAt     DateTime        @updatedAt
   refreshTokens RefreshToken[]
   messages      TicketMessage[]
+  wakeAttempts  WakeAttempt[]
 }
 
 model TicketMessage {
@@ -73,12 +85,64 @@ model TicketMessage {
   externalMessageId  String?               @unique
   clientRequestId    String?               @unique
   sentAt             DateTime?
+  mediaMimeType      String?
+  mediaData          String?
+  mediaFileName      String?
   createdAt          DateTime               @default(now())
   ticket             Ticket                 @relation(fields: [ticketId], references: [id], onDelete: Cascade)
   technician         Technician?            @relation(fields: [technicianId], references: [id], onDelete: SetNull)
 
   @@index([ticketId, createdAt, id])
   @@index([technicianId])
+}
+
+model Department {
+  id        Int       @id @default(autoincrement())
+  name      String    @unique
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  machines  Machine[]
+}
+
+model Machine {
+  id               Int           @id @default(autoincrement())
+  assetTag         String        @unique
+  name             String
+  location         String
+  macAddress       String        @unique
+  broadcastAddress String        @default("255.255.255.255")
+  wolPort          Int           @default(9)
+  hasProjector     Boolean       @default(false)
+  hasPrinter       Boolean       @default(false)
+  hasMonitor       Boolean       @default(false)
+  hasSpeakers      Boolean       @default(false)
+  notes            String?
+  isActive         Boolean       @default(true)
+  departmentId     Int
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  department       Department    @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  tickets          Ticket[]
+  wakeAttempts     WakeAttempt[]
+
+  @@index([departmentId, location])
+  @@index([isActive])
+}
+
+model WakeAttempt {
+  id                 Int               @id @default(autoincrement())
+  machineId          Int
+  technicianId       Int
+  status             WakeAttemptStatus
+  macAddressSnapshot String
+  targetSnapshot     String
+  error              String?
+  createdAt          DateTime          @default(now())
+  machine            Machine           @relation(fields: [machineId], references: [id], onDelete: Restrict)
+  technician         Technician        @relation(fields: [technicianId], references: [id], onDelete: Restrict)
+
+  @@index([machineId, createdAt])
+  @@index([technicianId, createdAt])
 }
 
 model RefreshToken {

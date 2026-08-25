@@ -5,16 +5,18 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { useAuth } from "@/providers/AuthProvider";
+import { ConnectionStatusProvider, useConnectionStatus } from "@/providers/ConnectionStatusProvider";
 
 import AppShellSkeleton from "./AppShellSkeleton";
 import Header from "./Header";
 import NavigationDrawer from "./NavigationDrawer";
 
-export default function AppShell({ children }: Readonly<{ children: React.ReactNode }>) {
+function AuthenticatedShell({ children }: Readonly<{ children: React.ReactNode }>) {
   const auth = useAuth();
   const router = useRouter();
   const [navigationOpen, setNavigationOpen] = useState(false);
   const [logoutError, setLogoutError] = useState(false);
+  const connection = useConnectionStatus();
 
   useEffect(() => {
     if (auth.status === "unauthenticated") router.replace("/login");
@@ -38,6 +40,7 @@ export default function AppShell({ children }: Readonly<{ children: React.ReactN
     <Box sx={{ minHeight: "100vh", bgcolor: "background.default" }}>
       <Header
         technician={auth.technician}
+        connectionStatus={connection.status}
         onOpenNavigation={() => setNavigationOpen(true)}
         onLogout={handleLogout}
       />
@@ -54,5 +57,13 @@ export default function AppShell({ children }: Readonly<{ children: React.ReactN
         message="The server could not complete sign out"
       />
     </Box>
+  );
+}
+
+export default function AppShell({ children }: Readonly<{ children: React.ReactNode }>) {
+  return (
+    <ConnectionStatusProvider>
+      <AuthenticatedShell>{children}</AuthenticatedShell>
+    </ConnectionStatusProvider>
   );
 }

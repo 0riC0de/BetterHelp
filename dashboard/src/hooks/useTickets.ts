@@ -2,7 +2,13 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { ApiError, getHealth, getTickets, updateTicketStatus } from "@/services/api";
+import {
+  ApiError,
+  getHealth,
+  getTickets,
+  updateTicketArchive,
+  updateTicketStatus,
+} from "@/services/api";
 import type { ConnectionStatus, TicketRealtimeEvent } from "@/types/realtime";
 import type { Ticket, TicketStatus } from "@/types/ticket";
 
@@ -28,6 +34,7 @@ interface UseTicketsResult {
   setAutoRefresh: (enabled: boolean) => void;
   refresh: () => Promise<void>;
   changeStatus: (ticketId: number, status: TicketStatus) => Promise<void>;
+  setArchived: (ticketId: number, archived: boolean) => Promise<void>;
   clearActionError: () => void;
 }
 
@@ -67,7 +74,7 @@ export function useTickets(onUnauthorized: () => void): UseTicketsResult {
     const operation = (async () => {
       try {
         const [response] = await Promise.all([
-          getTickets(),
+          getTickets({ archive: "all" }),
           getHealth().catch(() => null),
         ]);
         const synchronizedTickets = bufferedEventsRef.current
@@ -196,6 +203,27 @@ export function useTickets(onUnauthorized: () => void): UseTicketsResult {
     }
   }
 
+  async function setArchived(ticketId: number, archived: boolean): Promise<void> {
+    setPendingTicketIds((current) => new Set(current).add(ticketId));
+    try {
+      const ticket = await updateTicketArchive(ticketId, archived);
+      setTickets((current) => upsertTicket(current, ticket));
+      setActionError(null);
+    } catch (requestError: unknown) {
+      setActionError(
+        requestError instanceof ApiError
+          ? requestError.message
+          : "Ticket archive could not be updated",
+      );
+    } finally {
+      setPendingTicketIds((current) => {
+        const next = new Set(current);
+        next.delete(ticketId);
+        return next;
+      });
+    }
+  }
+
   return {
     tickets,
     isLoading,
@@ -208,6 +236,7 @@ export function useTickets(onUnauthorized: () => void): UseTicketsResult {
     setAutoRefresh,
     refresh: synchronize,
     changeStatus,
+    setArchived,
     clearActionError: () => setActionError(null),
   };
 }

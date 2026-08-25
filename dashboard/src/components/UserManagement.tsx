@@ -2,6 +2,7 @@
 
 import AddOutlined from "@mui/icons-material/AddOutlined";
 import DeleteOutline from "@mui/icons-material/DeleteOutlineOutlined";
+import LockResetOutlined from "@mui/icons-material/LockResetOutlined";
 import { Alert, Avatar, Button, Card, Chip, Container, IconButton, Stack, Tooltip, Typography } from "@mui/material";
 import { useEffect, useState } from "react";
 
@@ -10,6 +11,7 @@ import { ApiError, createTechnician, deleteTechnician, getTechnicians } from "@/
 import type { CreateTechnicianInput, ManagedTechnician } from "@/types/technician";
 
 import CreateTechnicianDialog from "./CreateTechnicianDialog";
+import ResetPasswordDialog from "./ResetPasswordDialog";
 import UserManagementSkeleton from "./UserManagementSkeleton";
 
 export default function UserManagement() {
@@ -19,6 +21,7 @@ export default function UserManagement() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [resetTarget, setResetTarget] = useState<ManagedTechnician | null>(null);
 
   useEffect(() => {
     let isActive = true;
@@ -78,6 +81,13 @@ export default function UserManagement() {
                 <Avatar>{user.name[0]?.toUpperCase()}</Avatar>
                 <Stack sx={{ flex: 1, minWidth: 0 }}><Typography sx={{ fontWeight: 700 }}>{user.name}</Typography><Typography variant="body2" color="text.secondary" noWrap>{user.email}</Typography></Stack>
                 <Chip size="small" label={user.role === "ADMIN" ? "Admin" : "Technician"} />
+                <Tooltip title="Reset password">
+                  <span>
+                    <IconButton color="warning" onClick={() => setResetTarget(user)} aria-label={`Reset password for ${user.name}`}>
+                      <LockResetOutlined />
+                    </IconButton>
+                  </span>
+                </Tooltip>
                 <Tooltip title="Delete user"><span><IconButton color="error" disabled={user.id === auth.technician?.id} onClick={() => void remove(user)}><DeleteOutline /></IconButton></span></Tooltip>
               </Stack>
             </Card>
@@ -85,6 +95,14 @@ export default function UserManagement() {
         </Stack>
       )}
       <CreateTechnicianDialog key={dialogOpen ? "open" : "closed"} open={dialogOpen} error={error} isSaving={isSaving} onClose={() => setDialogOpen(false)} onCreate={create} />
+      {resetTarget && (
+        <ResetPasswordDialog
+          open
+          technicianId={resetTarget.id}
+          technicianName={resetTarget.name}
+          onClose={() => setResetTarget(null)}
+        />
+      )}
     </Container>
   );
 }

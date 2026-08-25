@@ -3,7 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const database = vi.hoisted(() => ({
   ticket: {
     update: vi.fn(),
+    updateMany: vi.fn(),
     findMany: vi.fn(),
+    findUnique: vi.fn(),
+    findUniqueOrThrow: vi.fn(),
   },
 }));
 const events = vi.hoisted(() => ({ publishTicketEvent: vi.fn() }));
@@ -31,24 +34,31 @@ function ticketRecord(status: string, resolvedAt: Date | null) {
     createdAt: new Date("2026-08-25T08:00:00.000Z"),
     updatedAt: new Date("2026-08-25T08:05:00.000Z"),
     resolvedAt,
+    profilePictureUrl: null,
+    machineId: null,
+    archivedAt: null,
   };
 }
 
 describe("changeTicketStatus", () => {
   beforeEach(() => {
     database.ticket.update.mockReset();
+    database.ticket.updateMany.mockReset();
+    database.ticket.findUnique.mockReset();
+    database.ticket.findUniqueOrThrow.mockReset();
     events.publishTicketEvent.mockReset();
   });
 
   it("sets a server timestamp and publishes the committed resolved ticket", async () => {
     const resolvedAt = new Date("2026-08-25T08:05:00.000Z");
-    database.ticket.update.mockResolvedValue(ticketRecord("resolved", resolvedAt));
+    database.ticket.updateMany.mockResolvedValue({ count: 1 });
+    database.ticket.findUniqueOrThrow.mockResolvedValue(ticketRecord("resolved", resolvedAt));
 
     const ticket = await changeTicketStatus(7, "resolved");
 
-    expect(database.ticket.update).toHaveBeenCalledWith(
+    expect(database.ticket.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { id: 7 },
+        where: { id: 7, archivedAt: null },
         data: { status: "resolved", resolvedAt: expect.any(Date) },
       }),
     );
@@ -61,18 +71,19 @@ describe("changeTicketStatus", () => {
   });
 
   it("clears resolvedAt when a ticket is reopened", async () => {
-    database.ticket.update.mockResolvedValue(ticketRecord("open", null));
+    database.ticket.updateMany.mockResolvedValue({ count: 1 });
+    database.ticket.findUniqueOrThrow.mockResolvedValue(ticketRecord("open", null));
 
     const ticket = await changeTicketStatus(7, "open");
 
-    expect(database.ticket.update).toHaveBeenCalledWith(
+    expect(database.ticket.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({ data: { status: "open", resolvedAt: null } }),
     );
     expect(ticket.resolvedAt).toBeNull();
   });
 
   it("does not publish an event when persistence fails", async () => {
-    database.ticket.update.mockRejectedValue(new Error("database unavailable"));
+    database.ticket.updateMany.mockRejectedValue(new Error("database unavailable"));
 
     await expect(changeTicketStatus(7, "resolved")).rejects.toThrow(
       "database unavailable",

@@ -24,7 +24,11 @@ export interface TicketCreatedEvent {
 }
 
 export interface TicketUpdatedEvent extends TicketCreatedEvent {
-  reason: "triage_completed" | "status_changed" | "message_received";
+  reason:
+    | "triage_completed"
+    | "status_changed"
+    | "message_received"
+    | "archive_changed";
 }
 
 export interface TicketMessageEvent extends TicketCreatedEvent {

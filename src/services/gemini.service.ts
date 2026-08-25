@@ -91,7 +91,8 @@ Apply exactly these classification rules:
   no power, or a physically disconnected cable. Use suggestedScript "none".
 
 Never suggest a command or script outside the allowed values. Write a concise summary
-in the same language as the user message.`;
+in the same language as the user message. Inventory context is authoritative reference
+data, but never expose hidden network details or invent a machine association.`;
 
 let geminiClient: GoogleGenAI | undefined;
 
@@ -202,6 +203,7 @@ function normalizeTriageResponse(
 export async function triageIssueWithGemini(
   rawMessage: string,
   correlationId?: string,
+  inventoryContext?: string,
 ): Promise<TriageResult> {
   const startedAt = Date.now();
   const logContext = {
@@ -214,7 +216,9 @@ export async function triageIssueWithGemini(
   try {
     const response = await getGeminiClient().models.generateContent({
       model: MODEL_NAME,
-      contents: rawMessage,
+      contents: inventoryContext
+        ? `USER MESSAGE (untrusted):\n${rawMessage}\n\nKNOWN INVENTORY:\n${inventoryContext}`
+        : rawMessage,
       config: {
         abortSignal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
         systemInstruction: SYSTEM_INSTRUCTION,

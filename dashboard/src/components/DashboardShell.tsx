@@ -1,97 +1,108 @@
 "use client";
 
-import { startTransition, useDeferredValue, useEffect, useState } from "react";
-import { Alert, Chip, Container, Snackbar, Stack, Typography } from "@mui/material";
+import { Alert, Box, Snackbar, Stack, Typography } from "@mui/material";
+import { useEffect, useState } from "react";
 
 import { useTickets } from "@/hooks/useTickets";
 import { useAuth } from "@/providers/AuthProvider";
-import type { TicketFiltersState } from "@/types/ticket";
-import { filterTickets } from "@/utils/tickets";
+import { useConnectionStatus } from "@/providers/ConnectionStatusProvider";
 
-import MetricsOverview from "./MetricsOverview";
-import TicketFilters from "./TicketFilters";
-import TicketList, { EMPTY_FILTERS } from "./TicketList";
 import DashboardSkeleton from "./DashboardSkeleton";
+import MetricsOverview from "./MetricsOverview";
+import TicketConversationView from "./TicketConversationView";
+import TicketInbox from "./TicketInbox";
+import TicketMetadataPane from "./TicketMetadataPane";
 
 export default function DashboardShell() {
   const auth = useAuth();
+  const connection = useConnectionStatus();
   const ticketState = useTickets(auth.invalidate);
-  const [filters, setFilters] = useState<TicketFiltersState>(EMPTY_FILTERS);
+  const [mode, setMode] = useState<"inbox" | "archived">("inbox");
+  const [search, setSearch] = useState("");
+  const [selectedId, setSelectedId] = useState<number | null>(null);
   const [now, setNow] = useState(() => Date.now());
-  const deferredSearch = useDeferredValue(filters.search);
-  const visibleTickets = filterTickets(ticketState.tickets, filters, deferredSearch);
-  const connectionLabel = {
-    live: "Live",
-    syncing: "Syncing",
-    reconnecting: "Reconnecting",
-    polling: "REST fallback",
-    offline: "Offline",
-  }[ticketState.connectionStatus];
 
   useEffect(() => {
     const interval = setInterval(() => setNow(Date.now()), 60_000);
     return () => clearInterval(interval);
   }, []);
-
-  function handleFiltersChange(nextFilters: TicketFiltersState): void {
-    startTransition(() => setFilters(nextFilters));
-  }
+  useEffect(() => { connection.setStatus(ticketState.connectionStatus); }, [connection, ticketState.connectionStatus]);
 
   if (ticketState.isLoading) return <DashboardSkeleton />;
 
-  return (
-    <>
-      <Container component="main" maxWidth="xl" sx={{ py: { xs: 3, md: 4 } }}>
-        <Stack spacing={3}>
-          <Stack direction="row" sx={{ alignItems: "flex-start", justifyContent: "space-between" }}>
-            <Stack spacing={0.5}>
-              <Typography variant="h4">Ticket Operations</Typography>
-            <Typography color="text.secondary">
-              Live intake, Gemini triage, and technician resolution in one feed.
-            </Typography>
-            </Stack>
-            <Chip size="small" label={connectionLabel} />
-          </Stack>
+  const normalizedSearch = search.trim().toLocaleLowerCase();
+  const modeTickets = ticketState.tickets.filter((ticket) =>
+    mode === "archived" ? Boolean(ticket.archivedAt) : !ticket.archivedAt,
+  );
+  const visibleTickets = modeTickets.filter((ticket) => {
+    if (!normalizedSearch) return true;
+    return [ticket.userName, ticket.userPhone, ticket.summary, ticket.rawMessage]
+      .filter((value): value is string => Boolean(value))
+      .some((value) => value.toLocaleLowerCase().includes(normalizedSearch));
+  });
+  const selectedTicket =
+    visibleTickets.find((ticket) => ticket.id === selectedId) ?? visibleTickets[0] ?? null;
 
-          <MetricsOverview tickets={ticketState.tickets} />
-          {ticketState.error && (
-            <Alert severity="error" action={
-              <Typography
-                component="button"
-                onClick={() => void ticketState.refresh()}
-                sx={{ border: 0, bgcolor: "transparent", cursor: "pointer", fontWeight: 700 }}
-              >
-                Retry
-              </Typography>
-            }>
-              {ticketState.error}
-            </Alert>
+  return (
+    <Box component="main" sx={{ p: { xs: 0, md: 2 }, bgcolor: "#f0f2f5" }}>
+      <Stack spacing={1.5} sx={{ maxWidth: 1800, mx: "auto" }}>
+        <Box sx={{ px: { xs: 2, md: 0 }, pt: { xs: 2, md: 0 } }}>
+          <Typography variant="h4">Support workspace</Typography>
+          <MetricsOverview tickets={ticketState.tickets.filter((ticket) => !ticket.archivedAt)} />
+        </Box>
+        {ticketState.error && <Alert severity="error">{ticketState.error}</Alert>}
+        <Box
+          sx={{
+            height: { xs: "calc(100dvh - 144px)", md: "calc(100dvh - 210px)" },
+            minHeight: 560,
+            display: "grid",
+            gridTemplateColumns: { xs: "1fr", md: "340px minmax(0, 1fr)", lg: "360px minmax(0, 1fr) 300px" },
+            bgcolor: "background.paper",
+            border: { md: 1 },
+            borderColor: "divider",
+            borderRadius: { md: 2 },
+            overflow: "hidden",
+          }}
+        >
+          <Box sx={{ display: { xs: selectedId ? "none" : "block", md: "block" }, minHeight: 0 }}>
+            <TicketInbox
+              tickets={visibleTickets}
+              selectedId={selectedTicket?.id ?? null}
+              mode={mode}
+              search={search}
+              now={now}
+              onModeChange={(nextMode) => { setMode(nextMode); setSelectedId(null); }}
+              onSearchChange={setSearch}
+              onSelect={setSelectedId}
+            />
+          </Box>
+          <Box sx={{ display: { xs: selectedId ? "block" : "none", md: "block" }, minWidth: 0, minHeight: 0 }}>
+            {selectedTicket ? (
+              <TicketConversationView
+                key={selectedTicket.id}
+                ticketId={selectedTicket.id}
+                embedded
+                onBack={() => setSelectedId(null)}
+              />
+            ) : (
+              <Stack sx={{ height: "100%", alignItems: "center", justifyContent: "center", color: "text.secondary" }}>
+                <Typography variant="h6">Select a conversation</Typography>
+              </Stack>
+            )}
+          </Box>
+          {selectedTicket && (
+            <Box sx={{ display: { xs: "none", lg: "block" }, minHeight: 0 }}>
+              <TicketMetadataPane
+                ticket={selectedTicket}
+                pending={ticketState.pendingTicketIds.has(selectedTicket.id)}
+                onStatusChange={(status) => ticketState.changeStatus(selectedTicket.id, status)}
+                onArchiveChange={(archived) => ticketState.setArchived(selectedTicket.id, archived)}
+              />
+            </Box>
           )}
-          <TicketFilters
-            filters={filters}
-            resultCount={visibleTickets.length}
-            autoRefresh={ticketState.autoRefresh}
-            isRefreshing={ticketState.isRefreshing}
-            onChange={handleFiltersChange}
-            onAutoRefreshChange={ticketState.setAutoRefresh}
-            onRefresh={ticketState.refresh}
-          />
-          <TicketList
-            tickets={visibleTickets}
-            isLoading={ticketState.isLoading}
-            now={now}
-            pendingTicketIds={ticketState.pendingTicketIds}
-            onStatusChange={ticketState.changeStatus}
-            onClearFilters={() => setFilters(EMPTY_FILTERS)}
-          />
-        </Stack>
-      </Container>
-      <Snackbar
-        open={Boolean(ticketState.actionError)}
-        autoHideDuration={6_000}
-        onClose={ticketState.clearActionError}
-        message={ticketState.actionError}
-      />
-    </>
+        </Box>
+      </Stack>
+      <Snackbar open={Boolean(ticketState.actionError)} autoHideDuration={6_000} onClose={ticketState.clearActionError} message={ticketState.actionError} />
+    </Box>
   );
 }

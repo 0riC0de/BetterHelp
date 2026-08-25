@@ -112,6 +112,7 @@ export default function LoginPage() {
                   onChange={(event) => setEmail(event.target.value)}
                   required
                   autoFocus
+                  slotProps={{ inputLabel: { shrink: true } }}
                 />
                 <TextField
                   type="password"
@@ -120,6 +121,7 @@ export default function LoginPage() {
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                   required
+                  slotProps={{ inputLabel: { shrink: true } }}
                 />
                 <Button
                   type="submit"

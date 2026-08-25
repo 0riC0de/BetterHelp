@@ -1,96 +1,33 @@
-import AutoFixHighOutlined from "@mui/icons-material/AutoFixHighOutlined";
-import DesktopWindowsOutlined from "@mui/icons-material/DesktopWindowsOutlined";
+import AssignmentOutlined from "@mui/icons-material/AssignmentOutlined";
+import HourglassTopOutlined from "@mui/icons-material/HourglassTopOutlined";
+import MarkEmailUnreadOutlined from "@mui/icons-material/MarkEmailUnreadOutlined";
 import TaskAltOutlined from "@mui/icons-material/TaskAltOutlined";
-import ConfirmationNumberOutlined from "@mui/icons-material/ConfirmationNumberOutlined";
-import { Box, Card, CardContent, Stack, Typography } from "@mui/material";
+import { Box, Stack, Typography } from "@mui/material";
 
 import type { Ticket } from "@/types/ticket";
 import { getTicketMetrics } from "@/utils/tickets";
 
-interface MetricCardProps {
-  label: string;
-  value: number;
-  color: string;
-  background: string;
-  icon: React.ReactNode;
-}
-
-function MetricCard({ label, value, color, background, icon }: MetricCardProps) {
-  return (
-    <Card>
-      <CardContent>
-        <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between" }}>
-          <Box>
-            <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 650 }}>
-              {label}
-            </Typography>
-            <Typography variant="h4" sx={{ mt: 0.5 }}>
-              {value}
-            </Typography>
-          </Box>
-          <Box
-            sx={{
-              width: 48,
-              height: 48,
-              display: "grid",
-              placeItems: "center",
-              borderRadius: 3,
-              bgcolor: background,
-              color,
-            }}
-          >
-            {icon}
-          </Box>
-        </Stack>
-      </CardContent>
-    </Card>
-  );
-}
-
 export default function MetricsOverview({ tickets }: { tickets: readonly Ticket[] }) {
   const metrics = getTicketMetrics(tickets);
-  const cards = [
-    {
-      label: "Total Open Tickets",
-      value: metrics.open,
-      color: "#0369a1",
-      background: "#e0f2fe",
-      icon: <ConfirmationNumberOutlined />,
-    },
-    {
-      label: "Auto-Fixable Issues",
-      value: metrics.autoFixable,
-      color: "#15803d",
-      background: "#dcfce7",
-      icon: <AutoFixHighOutlined />,
-    },
-    {
-      label: "Remote Takeover Required",
-      value: metrics.remoteTakeover,
-      color: "#c2410c",
-      background: "#ffedd5",
-      icon: <DesktopWindowsOutlined />,
-    },
-    {
-      label: "Resolved Today",
-      value: metrics.resolvedToday,
-      color: "#6d28d9",
-      background: "#ede9fe",
-      icon: <TaskAltOutlined />,
-    },
+  const items = [
+    { label: "Active", value: metrics.active, icon: <AssignmentOutlined />, color: "#0f5e8c" },
+    { label: "Open", value: metrics.open, icon: <MarkEmailUnreadOutlined />, color: "#d97706" },
+    { label: "In progress", value: metrics.inProgress, icon: <HourglassTopOutlined />, color: "#7c3aed" },
+    { label: "Resolved today", value: metrics.resolvedToday, icon: <TaskAltOutlined />, color: "#15803d" },
   ];
-
   return (
-    <Box
-      sx={{
-        display: "grid",
-        gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", lg: "repeat(4, 1fr)" },
-        gap: 2,
-      }}
-    >
-      {cards.map((card) => (
-        <MetricCard key={card.label} {...card} />
+    <Stack direction="row" spacing={1} sx={{ mt: 1.5, overflowX: "auto", pb: 0.5 }}>
+      {items.map((item) => (
+        <Stack
+          key={item.label}
+          direction="row"
+          spacing={1}
+          sx={{ alignItems: "center", minWidth: 150, bgcolor: "background.paper", border: 1, borderColor: "divider", borderRadius: 2, px: 1.5, py: 1 }}
+        >
+          <Box sx={{ color: item.color, display: "flex" }}>{item.icon}</Box>
+          <Box><Typography variant="caption" color="text.secondary">{item.label}</Typography><Typography sx={{ fontWeight: 800 }}>{item.value}</Typography></Box>
+        </Stack>
       ))}
-    </Box>
+    </Stack>
   );
 }

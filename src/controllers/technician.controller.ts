@@ -7,6 +7,7 @@ import {
   createTechnician,
   deleteTechnician,
   listTechnicians,
+  resetTechnicianPassword,
   type ManagedTechnician,
 } from "../services/technician.service.js";
 
@@ -68,6 +69,22 @@ export async function removeTechnician(
 ): Promise<void> {
   try {
     await deleteTechnician(parseId(req.params.id), res.locals.technician.id);
+    res.status(204).send();
+  } catch (error: unknown) {
+    next(error);
+  }
+}
+
+export async function patchTechnicianPassword(
+  req: Request<{ id: string }, unknown, { password?: unknown }>,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    if (typeof req.body.password !== "string") {
+      throw new HttpError(400, "Password is required");
+    }
+    await resetTechnicianPassword(parseId(req.params.id), req.body.password);
     res.status(204).send();
   } catch (error: unknown) {
     next(error);

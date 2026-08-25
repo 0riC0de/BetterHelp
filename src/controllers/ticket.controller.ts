@@ -14,6 +14,7 @@ import {
   changeTicketStatus,
   getTicketConversation,
   listTickets,
+  setTicketArchived,
   type TicketConversation,
 } from "../services/ticket.service.js";
 import { sendTicketReply } from "../services/whatsapp.service.js";
@@ -34,6 +35,10 @@ interface UpdateStatusBody {
 interface SendMessageBody {
   text?: unknown;
   clientRequestId?: unknown;
+}
+
+interface ArchiveBody {
+  archived?: unknown;
 }
 
 type ValueGuard<T extends string> = (value: unknown) => value is T;
@@ -65,10 +70,19 @@ function createTicketFilter(query: Request["query"]): Prisma.TicketWhereInput {
     isTriageClassification,
     INVALID_CLASSIFICATION_MESSAGE,
   );
+  const archive = query.archive ?? "active";
+  if (archive !== "active" && archive !== "archived" && archive !== "all") {
+    throw new HttpError(400, "Archive filter must be active, archived, or all");
+  }
 
   return {
     ...(status ? { status } : {}),
     ...(classification ? { aiDecision: classification } : {}),
+    ...(archive === "active"
+      ? { archivedAt: null }
+      : archive === "archived"
+        ? { archivedAt: { not: null } }
+        : {}),
   };
 }
 
@@ -150,6 +164,23 @@ export async function sendTicketMessage(
         text,
         clientRequestId,
       ),
+    );
+  } catch (error: unknown) {
+    next(error);
+  }
+}
+
+export async function updateTicketArchive(
+  req: Request<{ id: string }, TicketDto, ArchiveBody>,
+  res: Response<TicketDto>,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    if (typeof req.body.archived !== "boolean") {
+      throw new HttpError(400, "Archived must be true or false");
+    }
+    res.json(
+      await setTicketArchived(parseTicketId(req.params.id), req.body.archived),
     );
   } catch (error: unknown) {
     next(error);

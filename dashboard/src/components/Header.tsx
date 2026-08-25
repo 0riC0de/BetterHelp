@@ -23,14 +23,16 @@ import { useState, type MouseEvent } from "react";
 import { useRouter } from "next/navigation";
 
 import type { Technician } from "@/types/auth";
+import type { ConnectionStatus } from "@/types/realtime";
 
 interface HeaderProps {
   technician: Technician;
+  connectionStatus: ConnectionStatus;
   onOpenNavigation: () => void;
   onLogout: () => Promise<void>;
 }
 
-export default function Header({ technician, onOpenNavigation, onLogout }: HeaderProps) {
+export default function Header({ technician, connectionStatus, onOpenNavigation, onLogout }: HeaderProps) {
   const router = useRouter();
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
   const initials = technician.name
@@ -39,6 +41,13 @@ export default function Header({ technician, onOpenNavigation, onLogout }: Heade
     .map((part) => part[0])
     .join("")
     .toUpperCase();
+  const connection = {
+    live: { label: "Live", color: "#22c55e" },
+    syncing: { label: "Syncing", color: "#38bdf8" },
+    reconnecting: { label: "Reconnecting", color: "#f59e0b" },
+    polling: { label: "REST fallback", color: "#f59e0b" },
+    offline: { label: "Offline", color: "#ef4444" },
+  }[connectionStatus];
 
   function openProfile(event: MouseEvent<HTMLElement>): void {
     setAnchor(event.currentTarget);
@@ -60,6 +69,11 @@ export default function Header({ technician, onOpenNavigation, onLogout }: Heade
               <Typography variant="caption" color="text.secondary">Technician command center</Typography>
             </Box>
           </Stack>
+          <Stack direction="row" spacing={1.5} sx={{ alignItems: "center" }}>
+          <Stack direction="row" spacing={0.75} sx={{ alignItems: "center" }} aria-label={`Connection status: ${connection.label}`}>
+            <Box component="span" sx={{ width: 9, height: 9, borderRadius: "50%", bgcolor: connection.color, boxShadow: `0 0 0 3px ${connection.color}22` }} />
+            <Typography variant="body2" sx={{ display: { xs: "none", sm: "block" }, fontWeight: 700 }}>{connection.label}</Typography>
+          </Stack>
           <ButtonBase
             onClick={openProfile}
             aria-haspopup="menu"
@@ -73,6 +87,7 @@ export default function Header({ technician, onOpenNavigation, onLogout }: Heade
               <Typography variant="caption" color="text.secondary">{technician.role}</Typography>
             </Box>
           </ButtonBase>
+          </Stack>
           <Menu anchorEl={anchor} open={Boolean(anchor)} onClose={() => setAnchor(null)}>
             <Box sx={{ px: 2, py: 1, maxWidth: 260 }}>
               <Typography sx={{ fontWeight: 700 }}>{technician.name}</Typography>

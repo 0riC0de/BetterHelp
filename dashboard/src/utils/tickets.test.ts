@@ -21,6 +21,9 @@ const ticket: Ticket = {
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
   resolvedAt: null,
+  profilePictureUrl: null,
+  machineId: null,
+  archivedAt: null,
 };
 
 describe("ticket dashboard selectors", () => {
@@ -54,7 +57,9 @@ describe("ticket dashboard selectors", () => {
       resolvedAt: new Date().toISOString(),
     };
     expect(getTicketMetrics([ticket, resolvedTicket])).toEqual({
+      active: 1,
       open: 1,
+      inProgress: 0,
       autoFixable: 1,
       remoteTakeover: 0,
       resolvedToday: 1,

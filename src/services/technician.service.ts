@@ -102,3 +102,25 @@ export async function deleteTechnician(
   });
   publishTechnicianRevoked(technicianId);
 }
+
+export async function resetTechnicianPassword(
+  technicianId: number,
+  password: string,
+): Promise<void> {
+  if (password.length < 12 || Buffer.byteLength(password, "utf8") > 72) {
+    throw new HttpError(400, "Password must be 12 to 72 UTF-8 bytes");
+  }
+  const passwordHash = await hashPassword(password);
+  await prisma.$transaction(async (transaction) => {
+    const updated = await transaction.technician.updateMany({
+      where: { id: technicianId, isActive: true },
+      data: { passwordHash, tokenVersion: { increment: 1 } },
+    });
+    if (updated.count !== 1) throw new HttpError(404, "Technician not found");
+    await transaction.refreshToken.updateMany({
+      where: { technicianId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+  });
+  publishTechnicianRevoked(technicianId);
+}

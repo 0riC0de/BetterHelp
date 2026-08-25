@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { useAuth } from "@/providers/AuthProvider";
 import { ApiError, getTicket, sendTicketMessage, updateTicketStatus } from "@/services/api";
@@ -29,6 +29,8 @@ export function useTicketConversation(ticketId: number) {
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [connectionStatus, setConnectionStatus] = useState<import("@/types/realtime").ConnectionStatus>("syncing");
+  const retryRequestRef = useRef<{ text: string; id: string } | null>(null);
 
   async function refresh(): Promise<void> {
     try {
@@ -70,19 +72,27 @@ export function useTicketConversation(ticketId: number) {
       setMessages((current) => upsertMessage(current, event.message));
     },
     onGap: () => void refresh(),
-    onStatus: () => undefined,
+    onStatus: setConnectionStatus,
     onUnauthorized: auth.invalidate,
   });
 
   async function send(text: string): Promise<boolean> {
     setIsSending(true);
+    const clientRequest =
+      retryRequestRef.current?.text === text
+        ? retryRequestRef.current
+        : { text, id: crypto.randomUUID() };
+    retryRequestRef.current = clientRequest;
     try {
-      const message = await sendTicketMessage(ticketId, text, crypto.randomUUID());
+      const message = await sendTicketMessage(ticketId, text, clientRequest.id);
       setMessages((current) => upsertMessage(current, message));
       setError(null);
+      retryRequestRef.current = null;
       return true;
     } catch (requestError: unknown) {
+      if (requestError instanceof ApiError && [401, 403].includes(requestError.status)) auth.invalidate();
       setError(requestError instanceof ApiError ? requestError.message : "Message could not be sent");
+      await refresh();
       return false;
     } finally {
       setIsSending(false);
@@ -97,5 +107,5 @@ export function useTicketConversation(ticketId: number) {
     }
   }
 
-  return { ticket, messages, isLoading, isSending, error, refresh, send, reopen };
+  return { ticket, messages, isLoading, isSending, error, connectionStatus, refresh, send, reopen };
 }

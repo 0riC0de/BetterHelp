@@ -21,7 +21,11 @@ export interface IncomingMessageInput {
   chatId: string;
   userPhone: string;
   userName: string | null;
+  profilePictureUrl: string | null;
   body: string;
+  mediaMimeType: string | null;
+  mediaData: string | null;
+  mediaFileName: string | null;
   externalMessageId: string | null;
   occurredAt: Date;
 }
@@ -103,6 +107,7 @@ async function persistIncomingMessage(input: IncomingMessageInput): Promise<Mess
           data: {
             userName: input.userName ?? activeTicket.userName,
             userPhone: input.userPhone,
+            profilePictureUrl: input.profilePictureUrl ?? activeTicket.profilePictureUrl,
             updatedAt: input.occurredAt,
           },
         });
@@ -120,6 +125,7 @@ async function persistIncomingMessage(input: IncomingMessageInput): Promise<Mess
             chatId: input.chatId,
             userPhone: input.userPhone,
             userName: input.userName,
+            profilePictureUrl: input.profilePictureUrl,
             rawMessage: input.body,
             status: "open",
             updatedAt: input.occurredAt,
@@ -135,6 +141,9 @@ async function persistIncomingMessage(input: IncomingMessageInput): Promise<Mess
         externalMessageId: input.externalMessageId,
         sentAt: input.occurredAt,
         createdAt: input.occurredAt,
+        mediaMimeType: input.mediaMimeType,
+        mediaData: input.mediaData,
+        mediaFileName: input.mediaFileName,
       },
       select: TICKET_MESSAGE_SELECT,
     });
@@ -276,9 +285,17 @@ export async function changeTicketStatus(
   status: TicketStatus,
 ): Promise<TicketDto> {
   try {
-    const ticket = await prisma.ticket.update({
-      where: { id: ticketId },
+    const updated = await prisma.ticket.updateMany({
+      where: { id: ticketId, archivedAt: null },
       data: { status, resolvedAt: status === "resolved" ? new Date() : null },
+    });
+    if (updated.count !== 1) {
+      const exists = await prisma.ticket.findUnique({ where: { id: ticketId }, select: { id: true } });
+      if (!exists) throw new HttpError(404, "Ticket not found");
+      throw new HttpError(409, "Unarchive the ticket before changing its status");
+    }
+    const ticket = await prisma.ticket.findUniqueOrThrow({
+      where: { id: ticketId },
       select: TICKET_VIEW_SELECT,
     });
     const ticketDto = toTicketDto(ticket);
@@ -293,4 +310,26 @@ export async function changeTicketStatus(
     }
     throw error;
   }
+}
+
+export async function setTicketArchived(
+  ticketId: number,
+  archived: boolean,
+): Promise<TicketDto> {
+  const current = await prisma.ticket.findUnique({
+    where: { id: ticketId },
+    select: TICKET_VIEW_SELECT,
+  });
+  if (!current) throw new HttpError(404, "Ticket not found");
+  if (archived && current.status !== "resolved") {
+    throw new HttpError(409, "Resolve the ticket before archiving it");
+  }
+  const ticket = await prisma.ticket.update({
+    where: { id: ticketId },
+    data: { archivedAt: archived ? new Date() : null },
+    select: TICKET_VIEW_SELECT,
+  });
+  const ticketDto = toTicketDto(ticket);
+  publishTicketEvent({ type: "updated", reason: "archive_changed", ticket: ticketDto });
+  return ticketDto;
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import ConfirmationNumberOutlined from "@mui/icons-material/ConfirmationNumberOutlined";
+import DesktopWindowsOutlined from "@mui/icons-material/DesktopWindowsOutlined";
 import ManageAccountsOutlined from "@mui/icons-material/ManageAccountsOutlined";
 import { Box, Drawer, List, ListItemButton, ListItemIcon, ListItemText, Typography } from "@mui/material";
 import { usePathname, useRouter } from "next/navigation";
@@ -19,7 +20,10 @@ export default function NavigationDrawer({ open, role, onClose }: NavigationDraw
   const items = [
     { label: "Tickets", path: "/", icon: <ConfirmationNumberOutlined /> },
     ...(role === "ADMIN"
-      ? [{ label: "User management", path: "/users", icon: <ManageAccountsOutlined /> }]
+      ? [
+          { label: "Workspace", path: "/workspace", icon: <DesktopWindowsOutlined /> },
+          { label: "User management", path: "/users", icon: <ManageAccountsOutlined /> },
+        ]
       : []),
   ];
 

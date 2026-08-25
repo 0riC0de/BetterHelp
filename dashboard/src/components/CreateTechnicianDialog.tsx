@@ -32,10 +32,10 @@ export default function CreateTechnicianDialog(props: CreateTechnicianDialogProp
         <DialogContent>
           <Stack spacing={2} sx={{ pt: 1 }}>
             {props.error && <Alert severity="error">{props.error}</Alert>}
-            <TextField label="Name" value={name} onChange={(e) => setName(e.target.value)} required />
-            <TextField label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-            <TextField label="Temporary password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} helperText="At least 12 characters" required />
-            <TextField select label="Role" value={role} onChange={(e) => setRole(e.target.value as TechnicianRole)}>
+            <TextField label="Name" value={name} onChange={(e) => setName(e.target.value)} required slotProps={{ inputLabel: { shrink: true } }} />
+            <TextField label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required slotProps={{ inputLabel: { shrink: true } }} />
+            <TextField label="Temporary password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} helperText="At least 12 characters" required slotProps={{ inputLabel: { shrink: true } }} />
+            <TextField select label="Role" value={role} onChange={(e) => setRole(e.target.value as TechnicianRole)} slotProps={{ inputLabel: { shrink: true } }}>
               <MenuItem value="TECHNICIAN">Technician</MenuItem>
               <MenuItem value="ADMIN">Administrator</MenuItem>
             </TextField>

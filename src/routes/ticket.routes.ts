@@ -4,6 +4,7 @@ import {
   getTickets,
   getTicket,
   sendTicketMessage,
+  updateTicketArchive,
   updateTicketStatus,
 } from "../controllers/ticket.controller.js";
 import { requireTechnician } from "../middleware/auth.middleware.js";
@@ -23,6 +24,11 @@ ticketRouter.patch(
   "/tickets/:id/status",
   requireDashboardOrigin,
   updateTicketStatus,
+);
+ticketRouter.patch(
+  "/tickets/:id/archive",
+  requireDashboardOrigin,
+  updateTicketArchive,
 );
 
 export default ticketRouter;

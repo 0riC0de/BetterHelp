@@ -22,6 +22,10 @@ import { HttpError } from "../errors/http-error.js";
 import { getErrorMessage } from "../utils/errors.js";
 import { triageIssueWithGemini } from "./gemini.service.js";
 import {
+  findMachineIdForPcNumber,
+  getInventoryContext,
+} from "./inventory.service.js";
+import {
   acceptIncomingMessage,
   createPendingOutgoingMessage,
   markOutgoingMessage,
@@ -32,6 +36,8 @@ const { Client, LocalAuth } = WhatsAppWeb;
 
 const MAXIMUM_PROCESSED_MESSAGE_IDS = 1_000;
 const CONTACT_LOOKUP_TIMEOUT_MS = 5_000;
+const MAXIMUM_IMAGE_BYTES = 8 * 1024 * 1024;
+const SUPPORTED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const DIRECT_CHAT_SUFFIXES = ["@c.us", "@lid"] as const;
 
 type WhatsAppClient = InstanceType<typeof Client>;
@@ -41,6 +47,10 @@ interface IncomingTicketRequest {
   userPhone: string;
   userName: string | null;
   rawMessage: string;
+  profilePictureUrl: string | null;
+  mediaMimeType: string | null;
+  mediaData: string | null;
+  mediaFileName: string | null;
 }
 
 let client: WhatsAppClient | undefined;
@@ -94,7 +104,7 @@ function getMessageIgnoreReason(message: Message): string | null {
     return "not_a_direct_chat";
   }
 
-  if (!message.body.trim()) {
+  if (!message.body.trim() && !message.hasMedia) {
     return "empty_message";
   }
 
@@ -152,12 +162,46 @@ async function extractTicketRequest(
   messageReference: string,
 ): Promise<IncomingTicketRequest> {
   const contact = await getContactWithTimeout(message, messageReference);
+  let profilePictureUrl: string | null = null;
+  try {
+    profilePictureUrl = (await contact?.getProfilePicUrl()) || null;
+  } catch {
+    profilePictureUrl = null;
+  }
+  let mediaMimeType: string | null = null;
+  let mediaData: string | null = null;
+  let mediaFileName: string | null = null;
+  if (message.hasMedia) {
+    try {
+      const media = await message.downloadMedia();
+      const byteLength = media ? Buffer.byteLength(media.data, "base64") : 0;
+      if (
+        media &&
+        SUPPORTED_IMAGE_TYPES.has(media.mimetype) &&
+        byteLength > 0 &&
+        byteLength <= MAXIMUM_IMAGE_BYTES
+      ) {
+        mediaMimeType = media.mimetype;
+        mediaData = media.data;
+        mediaFileName = media.filename ?? null;
+      }
+    } catch (error: unknown) {
+      console.warn("WhatsApp image download failed", {
+        messageReference,
+        reason: getErrorMessage(error),
+      });
+    }
+  }
 
   return {
     chatId: message.from,
     userPhone: getUserPhone(message, contact),
     userName: getUserName(contact),
-    rawMessage: message.body.trim(),
+    rawMessage: message.body.trim() || (mediaData ? "[Image]" : "[Unsupported media]"),
+    profilePictureUrl,
+    mediaMimeType,
+    mediaData,
+    mediaFileName,
   };
 }
 
@@ -180,6 +224,7 @@ async function saveTicketTriage(
   ticketId: number,
   triage: TriageResult,
 ): Promise<TicketDto> {
+  const machineId = await findMachineIdForPcNumber(triage.pcNumber);
   const ticket = await prisma.ticket.update({
     where: { id: ticketId },
     data: {
@@ -188,6 +233,7 @@ async function saveTicketTriage(
       aiDecision: triage.classification,
       aiConfidence: triage.confidenceScore,
       suggestedScript: triage.suggestedScript,
+      machineId,
     },
     select: TICKET_VIEW_SELECT,
   });
@@ -239,7 +285,11 @@ export async function handleIncomingMessage(message: Message): Promise<void> {
       chatId: request.chatId,
       userPhone: request.userPhone,
       userName: request.userName,
+      profilePictureUrl: request.profilePictureUrl,
       body: request.rawMessage,
+      mediaMimeType: request.mediaMimeType,
+      mediaData: request.mediaData,
+      mediaFileName: request.mediaFileName,
       externalMessageId: messageId ?? null,
       occurredAt: new Date(message.timestamp * 1_000),
     });
@@ -253,7 +303,7 @@ export async function handleIncomingMessage(message: Message): Promise<void> {
       ticket: accepted.ticket,
       message: accepted.message,
     });
-    if (!accepted.isNewTicket) return;
+    if (!accepted.isNewTicket && accepted.ticket.pcNumber !== null) return;
   } catch (error: unknown) {
     if (messageId) {
       processedMessageIds.delete(messageId);
@@ -272,7 +322,12 @@ export async function handleIncomingMessage(message: Message): Promise<void> {
   });
 
   const correlationId = `ticket-${ticketId}:${messageReference}`;
-  const triage = await triageIssueWithGemini(request.rawMessage, correlationId);
+  const inventoryContext = await getInventoryContext(request.rawMessage);
+  const triage = await triageIssueWithGemini(
+    request.rawMessage,
+    correlationId,
+    inventoryContext,
+  );
 
   try {
     const ticket = await saveTicketTriage(ticketId, triage);
