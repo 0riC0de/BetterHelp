@@ -1,8 +1,13 @@
-import type { Server } from "node:http";
+import { createServer } from "node:http";
 
 import app from "./app.js";
-import { getHttpPort } from "./config/environment.js";
+import {
+  getAuthJwtSecret,
+  getHttpPort,
+  isWhatsAppEnabled,
+} from "./config/environment.js";
 import prisma from "./db/prisma.js";
+import { createRealtimeServer } from "./realtime/socket.server.js";
 import {
   destroyWhatsApp,
   initializeWhatsApp,
@@ -10,24 +15,16 @@ import {
 import { getErrorMessage } from "./utils/errors.js";
 
 const port = getHttpPort();
-const server = app.listen(port, () => {
-  console.log(`Helpdesk REST API listening on port ${port}`);
+const whatsAppEnabled = isWhatsAppEnabled();
+getAuthJwtSecret();
+
+const server = createServer(app);
+const realtimeServer = createRealtimeServer(server);
+server.listen(port, () => {
+  console.log(`Helpdesk REST and WebSocket API listening on port ${port}`);
 });
 
 let shutdownPromise: Promise<void> | undefined;
-
-function closeHttpServer(httpServer: Server): Promise<void> {
-  return new Promise((resolve, reject) => {
-    httpServer.close((error?: Error) => {
-      if (error) {
-        reject(error);
-        return;
-      }
-
-      resolve();
-    });
-  });
-}
 
 async function closeResource(
   resourceName: string,
@@ -44,10 +41,10 @@ async function closeResource(
 async function performShutdown(signal: NodeJS.Signals): Promise<void> {
   console.log(`${signal} received. Shutting down.`);
 
-  await Promise.all([
-    closeResource("WhatsApp shutdown", destroyWhatsApp),
-    closeResource("HTTP server shutdown", () => closeHttpServer(server)),
-  ]);
+  if (whatsAppEnabled) {
+    await closeResource("WhatsApp shutdown", destroyWhatsApp);
+  }
+  await closeResource("Realtime and HTTP shutdown", realtimeServer.close);
   await closeResource("Database disconnect", () => prisma.$disconnect());
 }
 
@@ -56,12 +53,16 @@ function shutdown(signal: NodeJS.Signals): Promise<void> {
   return shutdownPromise;
 }
 
-void initializeWhatsApp().catch((error: unknown) => {
-  console.error(
-    "Failed to initialize WhatsApp Web client:",
-    getErrorMessage(error),
-  );
-});
+if (whatsAppEnabled) {
+  void initializeWhatsApp().catch((error: unknown) => {
+    console.error(
+      "Failed to initialize WhatsApp Web client:",
+      getErrorMessage(error),
+    );
+  });
+} else {
+  console.log("WhatsApp initialization is disabled.");
+}
 
 process.once("SIGINT", () => {
   void shutdown("SIGINT");

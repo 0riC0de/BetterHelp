@@ -1,48 +1,27 @@
 import type { Prisma } from "@prisma/client";
 import type { NextFunction, Request, Response } from "express";
 
-import prisma from "../db/prisma.js";
 import { isTicketStatus, type TicketStatus } from "../domain/ticket.js";
+import type { TicketDto } from "../domain/ticket-view.js";
 import {
   isTriageClassification,
   type TriageClassification,
 } from "../domain/triage.js";
+import { HttpError } from "../errors/http-error.js";
+import { changeTicketStatus, listTickets } from "../services/ticket.service.js";
 
 const INVALID_STATUS_MESSAGE =
   "Invalid status filter. Use open, in_progress, or resolved.";
 const INVALID_CLASSIFICATION_MESSAGE =
   "Invalid classification filter. Use CAN_AUTO_FIX, NEEDS_REMOTE_TAKEOVER, or MANUAL_VISIT_REQUIRED.";
 
-const TICKET_LIST_SELECT = {
-  id: true,
-  userPhone: true,
-  userName: true,
-  pcNumber: true,
-  rawMessage: true,
-  summary: true,
-  status: true,
-  aiDecision: true,
-  aiConfidence: true,
-  suggestedScript: true,
-  scriptExecuted: true,
-  executionOutput: true,
-  createdAt: true,
-  resolvedAt: true,
-} satisfies Prisma.TicketSelect;
-
-type TicketListItem = Prisma.TicketGetPayload<{
-  select: typeof TICKET_LIST_SELECT;
-}>;
-
 interface TicketListResponse {
-  tickets: TicketListItem[];
+  tickets: TicketDto[];
 }
 
-interface ErrorResponse {
-  error: string;
+interface UpdateStatusBody {
+  status?: unknown;
 }
-
-class InvalidFilterError extends Error {}
 
 type ValueGuard<T extends string> = (value: unknown) => value is T;
 
@@ -56,7 +35,7 @@ function parseOptionalFilter<T extends string>(
   }
 
   if (!isAllowed(value)) {
-    throw new InvalidFilterError(errorMessage);
+    throw new HttpError(400, errorMessage);
   }
 
   return value;
@@ -80,25 +59,44 @@ function createTicketFilter(query: Request["query"]): Prisma.TicketWhereInput {
   };
 }
 
+function parseTicketId(value: string): number {
+  const ticketId = Number(value);
+
+  if (!Number.isSafeInteger(ticketId) || ticketId <= 0) {
+    throw new HttpError(400, "Ticket ID must be a positive integer");
+  }
+
+  return ticketId;
+}
+
 export async function getTickets(
   req: Request,
-  res: Response<TicketListResponse | ErrorResponse>,
+  res: Response<TicketListResponse>,
   next: NextFunction,
 ): Promise<void> {
   try {
-    const tickets = await prisma.ticket.findMany({
-      where: createTicketFilter(req.query),
-      select: TICKET_LIST_SELECT,
-      orderBy: { createdAt: "desc" },
-    });
-
-    res.json({ tickets });
+    res.json({ tickets: await listTickets(createTicketFilter(req.query)) });
   } catch (error: unknown) {
-    if (error instanceof InvalidFilterError) {
-      res.status(400).json({ error: error.message });
-      return;
+    next(error);
+  }
+}
+
+export async function updateTicketStatus(
+  req: Request<{ id: string }, TicketDto, UpdateStatusBody>,
+  res: Response<TicketDto>,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    if (!isTicketStatus(req.body.status)) {
+      throw new HttpError(400, INVALID_STATUS_MESSAGE);
     }
 
+    const ticket = await changeTicketStatus(
+      parseTicketId(req.params.id),
+      req.body.status,
+    );
+    res.json(ticket);
+  } catch (error: unknown) {
     next(error);
   }
 }

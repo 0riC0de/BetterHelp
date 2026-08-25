@@ -4,6 +4,8 @@ node_modules/
 !.env.example
 !.env.docker.example
 dist/
+.next/
+*.tsbuildinfo
 coverage/
 npm-debug.log*
 .wwebjs_auth/

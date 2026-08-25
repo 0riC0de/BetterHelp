@@ -7,6 +7,11 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum TechnicianRole {
+  ADMIN
+  TECHNICIAN
+}
+
 model Ticket {
   id              Int       @id @default(autoincrement())
   userPhone       String
@@ -26,4 +31,31 @@ model Ticket {
   @@index([status])
   @@index([createdAt])
   @@index([pcNumber])
+}
+
+model Technician {
+  id            Int             @id @default(autoincrement())
+  email         String          @unique
+  name          String
+  passwordHash  String
+  role          TechnicianRole  @default(TECHNICIAN)
+  isActive      Boolean         @default(true)
+  tokenVersion  Int             @default(0)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  refreshTokens RefreshToken[]
+}
+
+model RefreshToken {
+  tokenHash    String     @id
+  familyId     String
+  technicianId Int
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  createdAt    DateTime   @default(now())
+  technician   Technician @relation(fields: [technicianId], references: [id], onDelete: Cascade)
+
+  @@index([familyId])
+  @@index([technicianId])
+  @@index([expiresAt])
 }

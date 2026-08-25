@@ -6,8 +6,14 @@ import express, {
 } from "express";
 import morgan from "morgan";
 
-import { isProductionEnvironment } from "./config/environment.js";
+import { HttpError } from "./errors/http-error.js";
+import {
+  getTrustProxyHops,
+  isProductionEnvironment,
+} from "./config/environment.js";
+import authRouter from "./routes/auth.routes.js";
 import ticketRouter from "./routes/ticket.routes.js";
+import { isDashboardOriginAllowed } from "./security/origins.js";
 
 interface HealthResponse {
   status: "ok";
@@ -32,17 +38,43 @@ function handleError(
   res: Response<ErrorResponse>,
   _next: NextFunction,
 ): void {
+  if (error instanceof HttpError) {
+    res.status(error.statusCode).json({ error: error.message });
+    return;
+  }
+
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "status" in error &&
+    (error.status === 400 || error.status === 413)
+  ) {
+    res.status(error.status).json({
+      error: error.status === 413 ? "Request body is too large" : "Invalid JSON body",
+    });
+    return;
+  }
+
   console.error(error);
   res.status(500).json({ error: "Internal server error" });
 }
 
 const app = express();
 
-app.use(cors());
+const trustProxyHops = getTrustProxyHops();
+if (trustProxyHops) app.set("trust proxy", trustProxyHops);
+
+app.use(
+  cors({
+    origin: (origin, callback) => callback(null, isDashboardOriginAllowed(origin)),
+    credentials: true,
+  }),
+);
 app.use(express.json({ limit: "1mb" }));
 app.use(morgan(isProductionEnvironment() ? "combined" : "dev"));
 
 app.get("/health", getHealth);
+app.use("/api/auth", authRouter);
 app.use("/api", ticketRouter);
 app.use(handleNotFound);
 app.use(handleError);

@@ -26,7 +26,15 @@ services:
       PORT: 3000
       GEMINI_API_KEY: ${GEMINI_API_KEY:-your_api_key_here}
       WHATSAPP_AUTO_REPLY: ${WHATSAPP_AUTO_REPLY:-false}
+      WHATSAPP_ENABLED: ${WHATSAPP_ENABLED:-true}
       PUPPETEER_EXECUTABLE_PATH: /usr/bin/chromium
+      DASHBOARD_ALLOWED_ORIGINS: ${DASHBOARD_ALLOWED_ORIGINS:-http://localhost:3001}
+      AUTH_JWT_SECRET: ${AUTH_JWT_SECRET:-replace_with_at_least_32_random_characters}
+      AUTH_ACCESS_TOKEN_MINUTES: ${AUTH_ACCESS_TOKEN_MINUTES:-15}
+      AUTH_REFRESH_TOKEN_DAYS: ${AUTH_REFRESH_TOKEN_DAYS:-7}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
+      ADMIN_NAME: ${ADMIN_NAME:-Helpdesk Administrator}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-replace_with_a_strong_password}
       DATABASE_URL: postgresql://${POSTGRES_USER:-helpdesk}:${POSTGRES_PASSWORD:-change_this_password}@postgres:5432/${POSTGRES_DB:-helpdesk}?schema=public
     ports:
       - "3000:3000"
@@ -34,6 +42,23 @@ services:
       - wwebjs_auth:/app/.wwebjs_auth
       - wwebjs_cache:/app/.wwebjs_cache
     tty: true
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  dashboard:
+    build:
+      context: ./dashboard
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3000}
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    ports:
+      - "3001:3001"
 
 volumes:
   postgres_data:

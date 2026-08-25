@@ -11,7 +11,13 @@ import {
   shouldSendWhatsAppAutoReplies,
 } from "../config/environment.js";
 import prisma from "../db/prisma.js";
+import {
+  TICKET_VIEW_SELECT,
+  toTicketDto,
+  type TicketDto,
+} from "../domain/ticket-view.js";
 import type { TriageResult } from "../domain/triage.js";
+import { publishTicketEvent } from "../realtime/ticket-events.js";
 import { getErrorMessage } from "../utils/errors.js";
 import { triageIssueWithGemini } from "./gemini.service.js";
 
@@ -163,7 +169,7 @@ function createTriageReply(triage: TriageResult): string {
 
 async function createPendingTicket(
   request: IncomingTicketRequest,
-): Promise<number> {
+): Promise<TicketDto> {
   const ticket = await prisma.ticket.create({
     data: {
       userPhone: request.userPhone,
@@ -171,17 +177,17 @@ async function createPendingTicket(
       rawMessage: request.rawMessage,
       status: "open",
     },
-    select: { id: true },
+    select: TICKET_VIEW_SELECT,
   });
 
-  return ticket.id;
+  return toTicketDto(ticket);
 }
 
 async function saveTicketTriage(
   ticketId: number,
   triage: TriageResult,
-): Promise<void> {
-  await prisma.ticket.update({
+): Promise<TicketDto> {
+  const ticket = await prisma.ticket.update({
     where: { id: ticketId },
     data: {
       pcNumber: triage.pcNumber,
@@ -190,8 +196,10 @@ async function saveTicketTriage(
       aiConfidence: triage.confidenceScore,
       suggestedScript: triage.suggestedScript,
     },
-    select: { id: true },
+    select: TICKET_VIEW_SELECT,
   });
+
+  return toTicketDto(ticket);
 }
 
 export async function handleIncomingMessage(message: Message): Promise<void> {
@@ -234,7 +242,9 @@ export async function handleIncomingMessage(message: Message): Promise<void> {
 
   try {
     request = await extractTicketRequest(message, messageReference);
-    ticketId = await createPendingTicket(request);
+    const ticket = await createPendingTicket(request);
+    ticketId = ticket.id;
+    publishTicketEvent({ type: "created", ticket });
   } catch (error: unknown) {
     if (messageId) {
       processedMessageIds.delete(messageId);
@@ -256,7 +266,12 @@ export async function handleIncomingMessage(message: Message): Promise<void> {
   const triage = await triageIssueWithGemini(request.rawMessage, correlationId);
 
   try {
-    await saveTicketTriage(ticketId, triage);
+    const ticket = await saveTicketTriage(ticketId, triage);
+    publishTicketEvent({
+      type: "updated",
+      reason: "triage_completed",
+      ticket,
+    });
   } catch (error: unknown) {
     console.error("Helpdesk ticket triage persistence failed", {
       messageReference,
