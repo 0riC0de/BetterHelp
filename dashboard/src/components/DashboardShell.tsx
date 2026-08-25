@@ -74,6 +74,8 @@ export default function DashboardShell() {
               onModeChange={(nextMode) => { setMode(nextMode); setSelectedId(null); }}
               onSearchChange={setSearch}
               onSelect={setSelectedId}
+              onArchive={(id) => void ticketState.setArchived(id, true)}
+              onUnarchive={(id) => void ticketState.setArchived(id, false)}
             />
           </Box>
           <Box sx={{ display: { xs: selectedId ? "block" : "none", md: "block" }, minWidth: 0, minHeight: 0 }}>

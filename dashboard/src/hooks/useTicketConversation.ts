@@ -8,6 +8,18 @@ import type { Ticket, TicketMessage } from "@/types/ticket";
 
 import { useTicketRealtime } from "./useTicketRealtime";
 
+/** Generate a UUID v4, falling back for non-secure contexts (HTTP on LAN). */
+function generateUUID(): string {
+  try {
+    return crypto.randomUUID();
+  } catch {
+    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+      const r = (Math.random() * 16) | 0;
+      return (c === "x" ? r : (r & 0x3) | 0x8).toString(16);
+    });
+  }
+}
+
 function upsertMessage(messages: TicketMessage[], message: TicketMessage): TicketMessage[] {
   const index = messages.findIndex((candidate) => candidate.id === message.id);
   if (index === -1) return [...messages, message];
@@ -78,10 +90,10 @@ export function useTicketConversation(ticketId: number) {
 
   async function send(text: string): Promise<boolean> {
     setIsSending(true);
-    const clientRequest =
+      const clientRequest =
       retryRequestRef.current?.text === text
         ? retryRequestRef.current
-        : { text, id: crypto.randomUUID() };
+        : { text, id: generateUUID() };
     retryRequestRef.current = clientRequest;
     try {
       const message = await sendTicketMessage(ticketId, text, clientRequest.id);

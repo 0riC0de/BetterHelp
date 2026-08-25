@@ -7,6 +7,7 @@ import {
   updateTicketArchive,
   updateTicketStatus,
 } from "../controllers/ticket.controller.js";
+import { getProfilePicture } from "../controllers/profile-picture.controller.js";
 import { requireTechnician } from "../middleware/auth.middleware.js";
 import { requireDashboardOrigin } from "../security/origins.js";
 
@@ -15,6 +16,7 @@ const ticketRouter = Router();
 ticketRouter.use(requireTechnician);
 ticketRouter.get("/tickets", getTickets);
 ticketRouter.get("/tickets/:id", getTicket);
+ticketRouter.get("/profile-picture/:chatId", getProfilePicture);
 ticketRouter.post(
   "/tickets/:id/messages",
   requireDashboardOrigin,

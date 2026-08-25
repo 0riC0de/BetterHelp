@@ -15,6 +15,8 @@ interface TicketInboxProps {
   onModeChange: (mode: "inbox" | "archived") => void;
   onSearchChange: (search: string) => void;
   onSelect: (ticketId: number) => void;
+  onArchive?: (ticketId: number) => void;
+  onUnarchive?: (ticketId: number) => void;
 }
 
 export default function TicketInbox(props: TicketInboxProps) {
@@ -44,6 +46,8 @@ export default function TicketInbox(props: TicketInboxProps) {
             selected={ticket.id === props.selectedId}
             now={props.now}
             onSelect={() => props.onSelect(ticket.id)}
+            {...(props.onArchive && { onArchive: () => props.onArchive!(ticket.id) })}
+            {...(props.onUnarchive && { onUnarchive: () => props.onUnarchive!(ticket.id) })}
           />
         ))}
         {!props.tickets.length && (
