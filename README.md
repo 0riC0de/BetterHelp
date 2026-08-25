@@ -36,12 +36,14 @@ WHATSAPP_ENABLED=true
 DASHBOARD_ALLOWED_ORIGINS=http://localhost:3001
 NEXT_PUBLIC_API_URL=http://localhost:3000
 AUTH_JWT_SECRET=replace_with_a_random_secret_of_at_least_32_characters
+AUTH_COOKIE_SECURE=false
 ADMIN_EMAIL=admin@example.com
 ADMIN_NAME=Helpdesk Administrator
 ADMIN_PASSWORD=replace_with_a_strong_password
 ```
 
 Set real Gemini, database, authentication, and administrator secrets. Use an alphanumeric database password to avoid URL escaping issues in `DATABASE_URL`.
+Keep `AUTH_COOKIE_SECURE=false` only for HTTP LAN access; set it to `true` when using HTTPS.
 
 Start everything:
 

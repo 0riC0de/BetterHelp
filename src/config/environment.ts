@@ -126,6 +126,15 @@ export function getRefreshTokenLifetimeSeconds(): number {
   ) * 24 * 60 * 60;
 }
 
+export function shouldUseSecureAuthCookies(): boolean {
+  const configuredValue = readTrimmedEnvironmentVariable("AUTH_COOKIE_SECURE");
+  if (!configuredValue) return isProductionEnvironment();
+  if (configuredValue !== "true" && configuredValue !== "false") {
+    throw new Error("AUTH_COOKIE_SECURE must be true or false");
+  }
+  return configuredValue === "true";
+}
+
 export function getTrustProxyHops(): number | false {
   const configuredHops = readTrimmedEnvironmentVariable("TRUST_PROXY_HOPS");
   if (!configuredHops) return false;

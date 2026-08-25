@@ -3,7 +3,7 @@ import type { Request, Response } from "express";
 import {
   getAccessTokenLifetimeSeconds,
   getRefreshTokenLifetimeSeconds,
-  isProductionEnvironment,
+  shouldUseSecureAuthCookies,
 } from "../config/environment.js";
 import {
   ACCESS_TOKEN_COOKIE,
@@ -32,7 +32,7 @@ interface AuthResponse {
 function setSessionCookies(res: Response, session: AuthSession): void {
   const cookieOptions = {
     httpOnly: true,
-    secure: isProductionEnvironment(),
+    secure: shouldUseSecureAuthCookies(),
     sameSite: "strict" as const,
   };
 
@@ -51,7 +51,7 @@ function setSessionCookies(res: Response, session: AuthSession): void {
 function clearSessionCookies(res: Response): void {
   const options = {
     httpOnly: true,
-    secure: isProductionEnvironment(),
+    secure: shouldUseSecureAuthCookies(),
     sameSite: "strict" as const,
   };
   res.clearCookie(ACCESS_TOKEN_COOKIE, { ...options, path: "/" });
