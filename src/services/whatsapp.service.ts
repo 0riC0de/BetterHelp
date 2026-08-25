@@ -18,6 +18,7 @@ import { triageIssueWithGemini } from "./gemini.service.js";
 const { Client, LocalAuth } = WhatsAppWeb;
 
 const MAXIMUM_PROCESSED_MESSAGE_IDS = 1_000;
+const CONTACT_LOOKUP_TIMEOUT_MS = 5_000;
 const DIRECT_CHAT_SUFFIXES = ["@c.us", "@lid"] as const;
 
 type WhatsAppClient = InstanceType<typeof Client>;
@@ -28,11 +29,6 @@ interface IncomingTicketRequest {
   rawMessage: string;
 }
 
-interface SavedTriageResult {
-  ticketId: number;
-  triage: TriageResult;
-}
-
 let client: WhatsAppClient | undefined;
 let initializationPromise: Promise<WhatsAppClient> | undefined;
 let isShuttingDown = false;
@@ -41,6 +37,10 @@ const activeMessageTasks = new Set<Promise<void>>();
 
 function hasDirectChatSuffix(chatId: string): boolean {
   return DIRECT_CHAT_SUFFIXES.some((suffix) => chatId.endsWith(suffix));
+}
+
+function getMessageReference(message: Message): string {
+  return message.id?._serialized?.slice(-12) || `time-${message.timestamp}`;
 }
 
 function rememberMessage(messageId: string): void {
@@ -71,18 +71,26 @@ function normalizeChatId(recipient: string): string {
   return `${normalizedRecipient.replace(/^\+/, "")}@c.us`;
 }
 
-function shouldHandleMessage(message: Message): boolean {
-  return (
-    !message.fromMe &&
-    hasDirectChatSuffix(message.from) &&
-    message.body.trim().length > 0
-  );
+function getMessageIgnoreReason(message: Message): string | null {
+  if (message.fromMe) {
+    return "sent_by_bot";
+  }
+
+  if (!hasDirectChatSuffix(message.from)) {
+    return "not_a_direct_chat";
+  }
+
+  if (!message.body.trim()) {
+    return "empty_message";
+  }
+
+  return null;
 }
 
-function getUserPhone(message: Message, contact: Contact): string {
-  const contactId = contact.id._serialized;
+function getUserPhone(message: Message, contact: Contact | null): string {
+  const contactId = contact?.id?._serialized;
 
-  if (contactId.endsWith("@c.us")) {
+  if (contactId?.endsWith("@c.us")) {
     return contactId.replace("@c.us", "");
   }
 
@@ -90,17 +98,46 @@ function getUserPhone(message: Message, contact: Contact): string {
     return message.from.replace("@c.us", "");
   }
 
-  return contact.number || contactId || message.from;
+  return contact?.number || contactId || message.from;
 }
 
-function getUserName(contact: Contact): string | null {
-  return contact.pushname || contact.name || contact.shortName || null;
+function getUserName(contact: Contact | null): string | null {
+  return contact
+    ? contact.pushname || contact.name || contact.shortName || null
+    : null;
+}
+
+async function getContactWithTimeout(
+  message: Message,
+  messageReference: string,
+): Promise<Contact | null> {
+  let timeout: NodeJS.Timeout | undefined;
+  const timeoutPromise = new Promise<never>((_resolve, reject) => {
+    timeout = setTimeout(() => {
+      reject(new Error("WhatsApp contact lookup timed out"));
+    }, CONTACT_LOOKUP_TIMEOUT_MS);
+  });
+
+  try {
+    return await Promise.race([message.getContact(), timeoutPromise]);
+  } catch (error: unknown) {
+    console.warn("WhatsApp contact lookup failed; using sender ID", {
+      messageReference,
+      reason: getErrorMessage(error),
+    });
+    return null;
+  } finally {
+    if (timeout) {
+      clearTimeout(timeout);
+    }
+  }
 }
 
 async function extractTicketRequest(
   message: Message,
+  messageReference: string,
 ): Promise<IncomingTicketRequest> {
-  const contact = await message.getContact();
+  const contact = await getContactWithTimeout(message, messageReference);
 
   return {
     userPhone: getUserPhone(message, contact),
@@ -124,21 +161,15 @@ function createTriageReply(triage: TriageResult): string {
   return `Your IT ticket is open for ${pcReference}. An IT technician has been notified.`;
 }
 
-async function saveTriagedTicket(
+async function createPendingTicket(
   request: IncomingTicketRequest,
-  triage: TriageResult,
 ): Promise<number> {
   const ticket = await prisma.ticket.create({
     data: {
       userPhone: request.userPhone,
       userName: request.userName,
-      pcNumber: triage.pcNumber,
       rawMessage: request.rawMessage,
-      summary: triage.userFriendlySummary,
       status: "open",
-      aiDecision: triage.classification,
-      aiConfidence: triage.confidenceScore,
-      suggestedScript: triage.suggestedScript,
     },
     select: { id: true },
   });
@@ -146,50 +177,106 @@ async function saveTriagedTicket(
   return ticket.id;
 }
 
-async function triageAndSaveMessage(message: Message): Promise<SavedTriageResult> {
-  const request = await extractTicketRequest(message);
-  const triage = await triageIssueWithGemini(request.rawMessage);
-  const ticketId = await saveTriagedTicket(request, triage);
-
-  return { ticketId, triage };
+async function saveTicketTriage(
+  ticketId: number,
+  triage: TriageResult,
+): Promise<void> {
+  await prisma.ticket.update({
+    where: { id: ticketId },
+    data: {
+      pcNumber: triage.pcNumber,
+      summary: triage.userFriendlySummary,
+      aiDecision: triage.classification,
+      aiConfidence: triage.confidenceScore,
+      suggestedScript: triage.suggestedScript,
+    },
+    select: { id: true },
+  });
 }
 
 export async function handleIncomingMessage(message: Message): Promise<void> {
+  const messageId = message.id?._serialized;
+  const messageReference = getMessageReference(message);
+
   console.log("WhatsApp message received", {
+    messageReference,
+    timestamp: message.timestamp,
     fromMe: message.fromMe,
     type: message.type,
     chatSuffix: message.from.slice(-8),
   });
 
-  const messageId = message.id._serialized;
-
-  if (processedMessageIds.has(messageId)) {
+  if (messageId && processedMessageIds.has(messageId)) {
+    console.log("Duplicate WhatsApp message ignored", { messageReference });
     return;
   }
 
-  if (!shouldHandleMessage(message)) {
-    console.log("WhatsApp message ignored");
+  const ignoreReason = getMessageIgnoreReason(message);
+
+  if (ignoreReason) {
+    console.log("WhatsApp message ignored", {
+      messageReference,
+      reason: ignoreReason,
+    });
     return;
   }
 
-  rememberMessage(messageId);
+  if (messageId) {
+    rememberMessage(messageId);
+  } else {
+    console.warn("WhatsApp message has no serialized ID; deduplication skipped", {
+      messageReference,
+    });
+  }
 
-  let savedResult: SavedTriageResult;
+  let request: IncomingTicketRequest;
+  let ticketId: number;
 
   try {
-    savedResult = await triageAndSaveMessage(message);
+    request = await extractTicketRequest(message, messageReference);
+    ticketId = await createPendingTicket(request);
   } catch (error: unknown) {
-    processedMessageIds.delete(messageId);
+    if (messageId) {
+      processedMessageIds.delete(messageId);
+    }
+
+    console.error("WhatsApp ticket acceptance failed", {
+      messageReference,
+      reason: getErrorMessage(error),
+    });
     throw error;
   }
 
-  console.log("Triaged helpdesk ticket created", {
-    ticketId: savedResult.ticketId,
-    classification: savedResult.triage.classification,
+  console.log("Helpdesk ticket accepted for triage", {
+    messageReference,
+    ticketId,
+  });
+
+  const correlationId = `ticket-${ticketId}:${messageReference}`;
+  const triage = await triageIssueWithGemini(request.rawMessage, correlationId);
+
+  try {
+    await saveTicketTriage(ticketId, triage);
+  } catch (error: unknown) {
+    console.error("Helpdesk ticket triage persistence failed", {
+      messageReference,
+      ticketId,
+      reason: getErrorMessage(error),
+    });
+    throw error;
+  }
+
+  console.log("Helpdesk ticket triage persisted", {
+    messageReference,
+    ticketId,
+    classification: triage.classification,
+    suggestedScript: triage.suggestedScript,
+    confidenceScore: triage.confidenceScore,
   });
 
   if (shouldSendWhatsAppAutoReplies()) {
-    await message.reply(createTriageReply(savedResult.triage));
+    await message.reply(createTriageReply(triage));
+    console.log("WhatsApp triage reply sent", { messageReference, ticketId });
   }
 }
 

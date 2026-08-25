@@ -201,7 +201,16 @@ function normalizeTriageResponse(
 
 export async function triageIssueWithGemini(
   rawMessage: string,
+  correlationId?: string,
 ): Promise<TriageResult> {
+  const startedAt = Date.now();
+  const logContext = {
+    ...(correlationId ? { correlationId } : {}),
+    model: MODEL_NAME,
+  };
+
+  console.log("Gemini triage started", logContext);
+
   try {
     const response = await getGeminiClient().models.generateContent({
       model: MODEL_NAME,
@@ -221,12 +230,24 @@ export async function triageIssueWithGemini(
     }
 
     const parsedResponse: unknown = JSON.parse(responseText);
-    return normalizeTriageResponse(parsedResponse, rawMessage);
+    const triage = normalizeTriageResponse(parsedResponse, rawMessage);
+
+    console.log("Gemini triage completed", {
+      ...logContext,
+      durationMs: Date.now() - startedAt,
+      classification: triage.classification,
+      suggestedScript: triage.suggestedScript,
+      pcNumber: triage.pcNumber,
+      confidenceScore: triage.confidenceScore,
+    });
+
+    return triage;
   } catch (error: unknown) {
-    console.error(
-      "Gemini triage failed; using safe fallback:",
-      getErrorMessage(error),
-    );
+    console.error("Gemini triage failed; using safe fallback", {
+      ...logContext,
+      durationMs: Date.now() - startedAt,
+      reason: getErrorMessage(error),
+    });
     return createFallbackTriage(rawMessage);
   }
 }
