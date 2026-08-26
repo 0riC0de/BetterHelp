@@ -4,7 +4,7 @@ import type { Ticket } from "@/types/ticket";
 import { API_URL } from "@/services/api";
 
 function avatarSrc(ticket: Ticket): string | undefined {
-  if (!ticket.profilePictureUrl || !ticket.chatId) return undefined;
+  if (!ticket.chatId) return undefined;
   const encoded = encodeURIComponent(ticket.chatId);
   return `${API_URL}/api/profile-picture/${encoded}`;
 }

@@ -38,6 +38,7 @@ export interface TicketMessageDto {
   mediaMimeType: string | null;
   mediaData: string | null;
   mediaFileName: string | null;
+  hasMedia: boolean;
   createdAt: string;
 }
 
@@ -53,8 +54,9 @@ export function toTicketMessageDto(message: TicketMessageRecord): TicketMessageD
     clientRequestId: message.clientRequestId,
     sentAt: message.sentAt?.toISOString() ?? null,
     mediaMimeType: message.mediaMimeType,
-    mediaData: message.mediaData,
+    mediaData: null,
     mediaFileName: message.mediaFileName,
+    hasMedia: Boolean(message.mediaMimeType && message.mediaData),
     createdAt: message.createdAt.toISOString(),
   };
 }

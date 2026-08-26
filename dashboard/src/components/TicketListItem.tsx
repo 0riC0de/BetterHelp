@@ -6,7 +6,6 @@ import type { Ticket } from "@/types/ticket";
 import { formatRelativeTime } from "@/utils/tickets";
 
 import ContactAvatar from "./ContactAvatar";
-import StatusChip from "./StatusChip";
 
 const SWIPE_THRESHOLD = 80;
 
@@ -21,6 +20,7 @@ interface TicketListItemProps {
 
 export default function TicketListItem({ ticket, selected, now, onSelect, onArchive, onUnarchive }: TicketListItemProps) {
   const touchStart = useRef(0);
+  const didSwipe = useRef(false);
   const [swipeOffset, setSwipeOffset] = useState(0);
 
   const isArchived = Boolean(ticket.archivedAt);
@@ -28,6 +28,7 @@ export default function TicketListItem({ ticket, selected, now, onSelect, onArch
   function handleTouchStart(e: React.TouchEvent<HTMLDivElement>): void {
     const touch = e.touches.item(0);
     if (touch) touchStart.current = touch.clientX;
+    didSwipe.current = false;
     setSwipeOffset(0);
   }
 
@@ -35,6 +36,7 @@ export default function TicketListItem({ ticket, selected, now, onSelect, onArch
     const touch = e.touches.item(0);
     if (!touch) return;
     const delta = touch.clientX - touchStart.current;
+    if (Math.abs(delta) > 10) didSwipe.current = true;
     setSwipeOffset(delta);
   }
 
@@ -95,12 +97,15 @@ export default function TicketListItem({ ticket, selected, now, onSelect, onArch
       )}
       <ListItemButton
         selected={selected}
-        onClick={onSelect}
+        onClick={() => {
+          if (!didSwipe.current) onSelect();
+          didSwipe.current = false;
+        }}
         sx={{
           alignItems: "flex-start",
           gap: 1.5,
           px: 2,
-          py: 1.5,
+          py: 1.25,
           borderBottom: 1,
           borderColor: "divider",
           position: "relative",
@@ -120,7 +125,6 @@ export default function TicketListItem({ ticket, selected, now, onSelect, onArch
           <Typography variant="body2" color="text.secondary" sx={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {ticket.summary ?? ticket.rawMessage}
           </Typography>
-          <Box sx={{ mt: 0.75 }}><StatusChip status={ticket.status} /></Box>
         </Box>
       </ListItemButton>
     </Box>

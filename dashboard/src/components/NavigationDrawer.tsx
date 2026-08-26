@@ -3,6 +3,7 @@
 import ConfirmationNumberOutlined from "@mui/icons-material/ConfirmationNumberOutlined";
 import DesktopWindowsOutlined from "@mui/icons-material/DesktopWindowsOutlined";
 import ManageAccountsOutlined from "@mui/icons-material/ManageAccountsOutlined";
+import SpaceDashboardOutlined from "@mui/icons-material/SpaceDashboardOutlined";
 import { Box, Drawer, List, ListItemButton, ListItemIcon, ListItemText, Typography } from "@mui/material";
 import { usePathname, useRouter } from "next/navigation";
 
@@ -19,6 +20,7 @@ export default function NavigationDrawer({ open, role, onClose }: NavigationDraw
   const router = useRouter();
   const items = [
     { label: "Tickets", path: "/", icon: <ConfirmationNumberOutlined /> },
+    { label: "Operations", path: "/overview", icon: <SpaceDashboardOutlined /> },
     ...(role === "ADMIN"
       ? [
           { label: "Workspace", path: "/workspace", icon: <DesktopWindowsOutlined /> },

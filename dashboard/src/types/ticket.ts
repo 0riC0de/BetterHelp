@@ -55,6 +55,7 @@ export interface TicketMessage {
   mediaMimeType: string | null;
   mediaData: string | null;
   mediaFileName: string | null;
+  hasMedia: boolean;
 }
 
 export interface TicketConversation {

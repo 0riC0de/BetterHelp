@@ -108,6 +108,7 @@ async function persistIncomingMessage(input: IncomingMessageInput): Promise<Mess
             userName: input.userName ?? activeTicket.userName,
             userPhone: input.userPhone,
             profilePictureUrl: input.profilePictureUrl ?? activeTicket.profilePictureUrl,
+            archivedAt: null,
             updatedAt: input.occurredAt,
           },
         });
@@ -321,9 +322,6 @@ export async function setTicketArchived(
     select: TICKET_VIEW_SELECT,
   });
   if (!current) throw new HttpError(404, "Ticket not found");
-  if (archived && current.status !== "resolved") {
-    throw new HttpError(409, "Resolve the ticket before archiving it");
-  }
   const ticket = await prisma.ticket.update({
     where: { id: ticketId },
     data: { archivedAt: archived ? new Date() : null },

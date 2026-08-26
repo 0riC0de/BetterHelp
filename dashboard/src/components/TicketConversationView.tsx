@@ -45,7 +45,7 @@ export default function TicketConversationView(props: TicketConversationViewProp
   const resolved = ticket.status === "resolved";
   const archived = Boolean(ticket.archivedAt);
   const content = (
-    <Card sx={{ height: "100%", border: props.embedded ? 0 : undefined, borderRadius: props.embedded ? 0 : undefined, display: "flex", flexDirection: "column" }}>
+    <Card elevation={props.embedded ? 0 : 1} sx={{ height: "100%", border: props.embedded ? 0 : undefined, borderRadius: props.embedded ? 0 : undefined, display: "flex", flexDirection: "column" }}>
       <Stack direction="row" spacing={1.5} sx={{ alignItems: "center", p: 2, borderBottom: 1, borderColor: "divider" }}>
         <IconButton onClick={props.onBack ?? (() => router.push("/"))} aria-label="Back to tickets" sx={{ display: { md: props.embedded ? "none" : "inline-flex" } }}><ArrowBackOutlined /></IconButton>
         <ContactAvatar ticket={ticket} />
@@ -53,7 +53,7 @@ export default function TicketConversationView(props: TicketConversationViewProp
         <StatusChip status={ticket.status} />
       </Stack>
       {conversation.error && <Alert severity="error">{conversation.error}</Alert>}
-      <Stack spacing={2} aria-live="polite" sx={{ flex: 1, minHeight: 0, p: 2.5, overflowY: "auto", bgcolor: "#efeae2" }}>
+      <Stack spacing={1} aria-live="polite" sx={{ flex: 1, minHeight: 0, p: { xs: 1.5, sm: 2.5 }, overflowY: "auto", bgcolor: "#efeae2", backgroundImage: "radial-gradient(rgba(11, 20, 26, 0.035) 1px, transparent 1px)", backgroundSize: "18px 18px" }}>
         {conversation.messages.map((message) => <MessageBubble key={message.id} message={message} />)}
         <div ref={messageEndRef} />
       </Stack>
