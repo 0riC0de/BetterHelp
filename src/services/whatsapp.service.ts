@@ -357,8 +357,8 @@ async function downloadRawMessageMedia(
         reason: "raw_download_threw",
         error: error instanceof Error ? error.message : String(error),
         byteLength: 0,
-        declaredMimeType: msg.mimetype ?? null,
-        fileName: msg.filename ?? null,
+        declaredMimeType: msg?.mimetype ?? null,
+        fileName: msg?.filename ?? null,
         strategy: "download_manager",
         metadata: metadata(),
       };
