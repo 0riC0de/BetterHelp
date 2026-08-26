@@ -5,7 +5,7 @@ import {
   isSupportedMediaMimeType,
   normalizeMediaMimeType,
 } from "../src/domain/media.js";
-import { inferMediaMimeType } from "../src/domain/infer-media-mime-type.js";
+import { createMediaFileName, inferMediaMimeType } from "../src/domain/infer-media-mime-type.js";
 
 describe("media validation", () => {
   it("normalizes WhatsApp codec parameters", () => {
@@ -32,5 +32,10 @@ describe("media validation", () => {
     expect(inferMediaMimeType("application/octet-stream", "image", null)).toBe("image/jpeg");
     expect(inferMediaMimeType("application/octet-stream", "ptt", null)).toBe("audio/ogg");
     expect(inferMediaMimeType("application/octet-stream", "document", "report.pdf")).toBe("application/pdf");
+  });
+
+  it("creates stable fallback names for downloaded WhatsApp media", () => {
+    expect(createMediaFileName("abc123", "image/jpeg", null)).toBe("whatsapp-abc123.jpg");
+    expect(createMediaFileName("abc123", "audio/ogg", "voice.ogg")).toBe("voice.ogg");
   });
 });

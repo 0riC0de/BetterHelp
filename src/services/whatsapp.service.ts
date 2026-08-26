@@ -44,6 +44,7 @@ const { Client, LocalAuth, MessageMedia } = WhatsAppWeb;
 
 const MAXIMUM_PROCESSED_MESSAGE_IDS = 1_000;
 const CONTACT_LOOKUP_TIMEOUT_MS = 5_000;
+const MEDIA_DOWNLOAD_RETRY_DELAYS_MS = [0, 750, 2_000, 5_000] as const;
 const DIRECT_CHAT_SUFFIXES = ["@c.us", "@lid"] as const;
 
 type WhatsAppClient = InstanceType<typeof Client>;
@@ -59,6 +60,19 @@ interface IncomingTicketRequest {
   mediaMimeType: string | null;
   mediaData: string | null;
   mediaFileName: string | null;
+}
+
+interface WhatsAppMediaMetadata {
+  messageType: string;
+  hasMedia: boolean;
+  declaredMimeType: string | null;
+  fileName: string | null;
+  size: number | null;
+  mediaStage: string | null;
+  hasDirectPath: boolean;
+  hasMediaKey: boolean;
+  hasFileHash: boolean;
+  hasEncFileHash: boolean;
 }
 
 let client: WhatsAppClient | undefined;
@@ -139,6 +153,90 @@ function getUserName(contact: Contact | null): string | null {
     : null;
 }
 
+function getRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === "object" && value !== null ? value as Record<string, unknown> : null;
+}
+
+function getStringProperty(record: Record<string, unknown> | null, key: string): string | null {
+  const value = record?.[key];
+  return typeof value === "string" && value.trim() ? value : null;
+}
+
+function getNumberProperty(record: Record<string, unknown> | null, key: string): number | null {
+  const value = record?.[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function getWhatsAppMediaMetadata(message: Message): WhatsAppMediaMetadata {
+  const rawData = getRecord(message.rawData);
+  const mediaData = getRecord(rawData?.mediaData);
+  return {
+    messageType: message.type,
+    hasMedia: message.hasMedia,
+    declaredMimeType: getStringProperty(rawData, "mimetype") ?? getStringProperty(mediaData, "mimetype"),
+    fileName: getStringProperty(rawData, "filename") ?? getStringProperty(mediaData, "filename"),
+    size: getNumberProperty(rawData, "size") ?? getNumberProperty(mediaData, "size"),
+    mediaStage: getStringProperty(mediaData, "mediaStage"),
+    hasDirectPath: Boolean(getStringProperty(rawData, "directPath")),
+    hasMediaKey: Boolean(getStringProperty(rawData, "mediaKey") ?? message.mediaKey),
+    hasFileHash: Boolean(getStringProperty(rawData, "filehash")),
+    hasEncFileHash: Boolean(getStringProperty(rawData, "encFilehash")),
+  };
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function downloadMessageMediaWithRetry(
+  message: Message,
+  messageReference: string,
+): Promise<Awaited<ReturnType<Message["downloadMedia"]>> | undefined> {
+  for (const [index, retryDelay] of MEDIA_DOWNLOAD_RETRY_DELAYS_MS.entries()) {
+    if (retryDelay > 0) await delay(retryDelay);
+    if (index > 0) {
+      try {
+        await message.reload();
+      } catch (error: unknown) {
+        console.warn("WhatsApp media reload failed before retry", {
+          messageReference,
+          attempt: index + 1,
+          reason: getErrorMessage(error),
+        });
+      }
+    }
+
+    const metadata = getWhatsAppMediaMetadata(message);
+    console.log("WhatsApp media download attempt", {
+      messageReference,
+      attempt: index + 1,
+      ...metadata,
+    });
+
+    try {
+      const media = await message.downloadMedia();
+      const byteLength = media?.data ? Buffer.byteLength(media.data, "base64") : 0;
+      console.log("WhatsApp media download result", {
+        messageReference,
+        attempt: index + 1,
+        returnedMedia: Boolean(media),
+        declaredMimeType: media?.mimetype ?? null,
+        fileName: media?.filename ?? null,
+        byteLength,
+      });
+      if (media?.data && byteLength > 0) return media;
+    } catch (error: unknown) {
+      console.warn("WhatsApp media download attempt failed", {
+        messageReference,
+        attempt: index + 1,
+        reason: getErrorMessage(error),
+      });
+    }
+  }
+
+  return undefined;
+}
+
 async function getContactWithTimeout(
   message: Message,
   messageReference: string,
@@ -187,16 +285,25 @@ async function extractTicketRequest(
   let mediaData: string | null = null;
   let mediaFileName: string | null = null;
   if (message.hasMedia) {
+    const initialMetadata = getWhatsAppMediaMetadata(message);
+    console.log("WhatsApp inbound media metadata", {
+      messageReference,
+      ...initialMetadata,
+    });
     try {
-      const media = await message.downloadMedia();
+      const media = await downloadMessageMediaWithRetry(message, messageReference);
       const byteLength = media ? Buffer.byteLength(media.data, "base64") : 0;
-      const mimeType = media ? inferMediaMimeType(media.mimetype, message.type, media.filename) : "";
+      const mimeType = inferMediaMimeType(
+        media?.mimetype ?? initialMetadata.declaredMimeType,
+        message.type,
+        media?.filename ?? initialMetadata.fileName,
+      );
       console.log("WhatsApp media download inspected", {
         messageReference,
         messageType: message.type,
-        declaredMimeType: media?.mimetype ?? null,
+        declaredMimeType: media?.mimetype ?? initialMetadata.declaredMimeType,
         inferredMimeType: mimeType || null,
-        fileName: media?.filename ?? null,
+        fileName: media?.filename ?? initialMetadata.fileName,
         byteLength,
       });
       if (
@@ -207,15 +314,16 @@ async function extractTicketRequest(
       ) {
         mediaMimeType = mimeType;
         mediaData = media.data;
-        mediaFileName = createMediaFileName(messageReference, mimeType, media.filename);
+        mediaFileName = createMediaFileName(messageReference, mimeType, media.filename ?? initialMetadata.fileName);
       } else if (message.hasMedia) {
         console.warn("WhatsApp media ignored", {
           messageReference,
           messageType: message.type,
-          declaredMimeType: media?.mimetype ?? null,
+          declaredMimeType: media?.mimetype ?? initialMetadata.declaredMimeType,
           inferredMimeType: mimeType || null,
           byteLength,
           maximumBytes: MAXIMUM_MEDIA_BYTES,
+          reason: !media ? "download_returned_no_media" : !byteLength ? "download_returned_empty_data" : !isSupportedMediaMimeType(mimeType) ? "unsupported_mime_type" : "media_too_large",
         });
       }
     } catch (error: unknown) {
@@ -230,7 +338,7 @@ async function extractTicketRequest(
     chatId: message.from,
     userPhone: getUserPhone(message, contact),
     userName: getUserName(contact),
-    rawMessage: message.body.trim() || getMediaPlaceholder(mediaMimeType),
+    rawMessage: message.body.trim() || (mediaData ? getMediaPlaceholder(mediaMimeType) : `${getMediaPlaceholder(inferMediaMimeType(null, message.type, mediaFileName))} unavailable`),
     profilePictureUrl,
     profilePictureMimeType,
     profilePictureData,

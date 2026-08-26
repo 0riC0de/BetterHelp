@@ -10,6 +10,7 @@ export function createDashboardSocket(): DashboardSocket {
   return io(`${API_URL}/dashboard`, {
     autoConnect: false,
     transports: ["polling"],
+    upgrade: false,
     withCredentials: true,
     reconnection: true,
     reconnectionDelay: 1_000,
