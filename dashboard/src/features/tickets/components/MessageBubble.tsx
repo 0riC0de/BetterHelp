@@ -65,6 +65,16 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
           </Stack>
         )}
         {showCaption && <Typography sx={{ whiteSpace: "pre-wrap", px: message.hasMedia ? 0.75 : 0, pt: message.hasMedia ? 0.75 : 0 }}>{message.body}</Typography>}
+        {message.mediaError && (
+          <Box sx={{ mt: 0.75, p: 0.75, borderRadius: 1, bgcolor: "rgba(239,68,68,.08)", color: "error.dark" }}>
+            <Typography variant="caption" sx={{ display: "block", fontWeight: 700 }}>Media failed: {message.mediaError}</Typography>
+            {message.mediaMetadata && (
+              <Typography component="pre" variant="caption" sx={{ m: 0, mt: 0.5, whiteSpace: "pre-wrap", overflowWrap: "anywhere", color: "text.secondary" }}>
+                {JSON.stringify(message.mediaMetadata, null, 2)}
+              </Typography>
+            )}
+          </Box>
+        )}
         <Typography variant="caption" color="text.secondary" sx={{ display: "block", px: 0.75, pt: 0.25, textAlign: "right", whiteSpace: "nowrap" }}>
           {formatAbsoluteTime(message.sentAt ?? message.createdAt)}
         </Typography>

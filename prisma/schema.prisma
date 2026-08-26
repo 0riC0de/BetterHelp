@@ -90,6 +90,8 @@ model TicketMessage {
   mediaMimeType      String?
   mediaData          String?
   mediaFileName      String?
+  mediaError         String?
+  mediaMetadata      Json?
   createdAt          DateTime               @default(now())
   ticket             Ticket                 @relation(fields: [ticketId], references: [id], onDelete: Cascade)
   technician         Technician?            @relation(fields: [technicianId], references: [id], onDelete: SetNull)

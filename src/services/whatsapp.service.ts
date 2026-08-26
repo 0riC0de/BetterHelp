@@ -1,4 +1,5 @@
 import qrcode from "qrcode-terminal";
+import type { Prisma as PrismaTypes } from "@prisma/client";
 import WhatsAppWeb from "whatsapp-web.js";
 import type {
   Contact,
@@ -60,6 +61,8 @@ interface IncomingTicketRequest {
   mediaMimeType: string | null;
   mediaData: string | null;
   mediaFileName: string | null;
+  mediaError: string | null;
+  mediaMetadata: PrismaTypes.InputJsonValue | null;
 }
 
 interface WhatsAppMediaMetadata {
@@ -73,6 +76,21 @@ interface WhatsAppMediaMetadata {
   hasMediaKey: boolean;
   hasFileHash: boolean;
   hasEncFileHash: boolean;
+}
+
+interface WhatsAppMediaDownloadAttempt {
+  attempt: number;
+  metadata: WhatsAppMediaMetadata;
+  returnedMedia: boolean;
+  declaredMimeType: string | null;
+  fileName: string | null;
+  byteLength: number;
+  error: string | null;
+}
+
+interface WhatsAppMediaDownloadResult {
+  media: Awaited<ReturnType<Message["downloadMedia"]>> | undefined;
+  attempts: WhatsAppMediaDownloadAttempt[];
 }
 
 let client: WhatsAppClient | undefined;
@@ -188,10 +206,15 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function toJsonObject(value: object): PrismaTypes.InputJsonObject {
+  return value as PrismaTypes.InputJsonObject;
+}
+
 async function downloadMessageMediaWithRetry(
   message: Message,
   messageReference: string,
-): Promise<Awaited<ReturnType<Message["downloadMedia"]>> | undefined> {
+): Promise<WhatsAppMediaDownloadResult> {
+  const attempts: WhatsAppMediaDownloadAttempt[] = [];
   for (const [index, retryDelay] of MEDIA_DOWNLOAD_RETRY_DELAYS_MS.entries()) {
     if (retryDelay > 0) await delay(retryDelay);
     if (index > 0) {
@@ -216,6 +239,15 @@ async function downloadMessageMediaWithRetry(
     try {
       const media = await message.downloadMedia();
       const byteLength = media?.data ? Buffer.byteLength(media.data, "base64") : 0;
+      attempts.push({
+        attempt: index + 1,
+        metadata,
+        returnedMedia: Boolean(media),
+        declaredMimeType: media?.mimetype ?? null,
+        fileName: media?.filename ?? null,
+        byteLength,
+        error: null,
+      });
       console.log("WhatsApp media download result", {
         messageReference,
         attempt: index + 1,
@@ -224,8 +256,17 @@ async function downloadMessageMediaWithRetry(
         fileName: media?.filename ?? null,
         byteLength,
       });
-      if (media?.data && byteLength > 0) return media;
+      if (media?.data && byteLength > 0) return { media, attempts };
     } catch (error: unknown) {
+      attempts.push({
+        attempt: index + 1,
+        metadata,
+        returnedMedia: false,
+        declaredMimeType: null,
+        fileName: null,
+        byteLength: 0,
+        error: getErrorMessage(error),
+      });
       console.warn("WhatsApp media download attempt failed", {
         messageReference,
         attempt: index + 1,
@@ -234,7 +275,7 @@ async function downloadMessageMediaWithRetry(
     }
   }
 
-  return undefined;
+  return { media: undefined, attempts };
 }
 
 async function getContactWithTimeout(
@@ -284,6 +325,8 @@ async function extractTicketRequest(
   let mediaMimeType: string | null = null;
   let mediaData: string | null = null;
   let mediaFileName: string | null = null;
+  let mediaError: string | null = null;
+  let mediaMetadata: PrismaTypes.InputJsonValue | null = null;
   if (message.hasMedia) {
     const initialMetadata = getWhatsAppMediaMetadata(message);
     console.log("WhatsApp inbound media metadata", {
@@ -291,7 +334,8 @@ async function extractTicketRequest(
       ...initialMetadata,
     });
     try {
-      const media = await downloadMessageMediaWithRetry(message, messageReference);
+      const mediaDownload = await downloadMessageMediaWithRetry(message, messageReference);
+      const { media } = mediaDownload;
       const byteLength = media ? Buffer.byteLength(media.data, "base64") : 0;
       const mimeType = inferMediaMimeType(
         media?.mimetype ?? initialMetadata.declaredMimeType,
@@ -315,7 +359,25 @@ async function extractTicketRequest(
         mediaMimeType = mimeType;
         mediaData = media.data;
         mediaFileName = createMediaFileName(messageReference, mimeType, media.filename ?? initialMetadata.fileName);
+        mediaMetadata = toJsonObject({
+          initialMetadata,
+          attempts: mediaDownload.attempts,
+          saved: { mimeType, fileName: mediaFileName, byteLength },
+        });
       } else if (message.hasMedia) {
+        mediaError = !media ? "download_returned_no_media" : !byteLength ? "download_returned_empty_data" : !isSupportedMediaMimeType(mimeType) ? "unsupported_mime_type" : "media_too_large";
+        mediaMetadata = toJsonObject({
+          initialMetadata,
+          attempts: mediaDownload.attempts,
+          rejected: {
+            reason: mediaError,
+            declaredMimeType: media?.mimetype ?? initialMetadata.declaredMimeType,
+            inferredMimeType: mimeType || null,
+            fileName: media?.filename ?? initialMetadata.fileName,
+            byteLength,
+            maximumBytes: MAXIMUM_MEDIA_BYTES,
+          },
+        });
         console.warn("WhatsApp media ignored", {
           messageReference,
           messageType: message.type,
@@ -323,10 +385,12 @@ async function extractTicketRequest(
           inferredMimeType: mimeType || null,
           byteLength,
           maximumBytes: MAXIMUM_MEDIA_BYTES,
-          reason: !media ? "download_returned_no_media" : !byteLength ? "download_returned_empty_data" : !isSupportedMediaMimeType(mimeType) ? "unsupported_mime_type" : "media_too_large",
+          reason: mediaError,
         });
       }
     } catch (error: unknown) {
+      mediaError = "download_threw_exception";
+      mediaMetadata = toJsonObject({ initialMetadata, error: getErrorMessage(error) });
       console.warn("WhatsApp media download failed", {
         messageReference,
         reason: getErrorMessage(error),
@@ -345,6 +409,8 @@ async function extractTicketRequest(
     mediaMimeType,
     mediaData,
     mediaFileName,
+    mediaError,
+    mediaMetadata,
   };
 }
 
@@ -456,6 +522,8 @@ export async function handleIncomingMessage(message: Message): Promise<void> {
       mediaMimeType: request.mediaMimeType,
       mediaData: request.mediaData,
       mediaFileName: request.mediaFileName,
+      mediaError: request.mediaError,
+      mediaMetadata: request.mediaMetadata,
       externalMessageId: messageId ?? null,
       occurredAt: new Date(message.timestamp * 1_000),
     });

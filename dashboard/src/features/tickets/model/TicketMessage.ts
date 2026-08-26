@@ -1,5 +1,6 @@
 import type { MessageDeliveryStatus } from "./MessageDeliveryStatus";
 import type { MessageDirection } from "./MessageDirection";
+import type { JsonValue } from "./JsonValue";
 
 export interface TicketMessage {
   id: number;
@@ -15,5 +16,7 @@ export interface TicketMessage {
   mediaMimeType: string | null;
   mediaData: string | null;
   mediaFileName: string | null;
+  mediaError: string | null;
+  mediaMetadata: JsonValue | null;
   hasMedia: boolean;
 }

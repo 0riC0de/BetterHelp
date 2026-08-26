@@ -17,6 +17,8 @@ export const TICKET_MESSAGE_SELECT = {
   mediaMimeType: true,
   mediaData: true,
   mediaFileName: true,
+  mediaError: true,
+  mediaMetadata: true,
   createdAt: true,
   technician: { select: { name: true } },
 } satisfies Prisma.TicketMessageSelect;
@@ -38,6 +40,8 @@ export interface TicketMessageDto {
   mediaMimeType: string | null;
   mediaData: string | null;
   mediaFileName: string | null;
+  mediaError: string | null;
+  mediaMetadata: Prisma.JsonValue | null;
   hasMedia: boolean;
   createdAt: string;
 }
@@ -56,6 +60,8 @@ export function toTicketMessageDto(message: TicketMessageRecord): TicketMessageD
     mediaMimeType: message.mediaMimeType,
     mediaData: null,
     mediaFileName: message.mediaFileName,
+    mediaError: message.mediaError,
+    mediaMetadata: message.mediaMetadata,
     hasMedia: Boolean(message.mediaMimeType && message.mediaData),
     createdAt: message.createdAt.toISOString(),
   };

@@ -28,6 +28,8 @@ export interface IncomingMessageInput {
   mediaMimeType: string | null;
   mediaData: string | null;
   mediaFileName: string | null;
+  mediaError: string | null;
+  mediaMetadata: PrismaTypes.InputJsonValue | null;
   externalMessageId: string | null;
   occurredAt: Date;
 }
@@ -153,6 +155,8 @@ async function persistIncomingMessage(input: IncomingMessageInput): Promise<Mess
         mediaMimeType: input.mediaMimeType,
         mediaData: input.mediaData,
         mediaFileName: input.mediaFileName,
+        mediaError: input.mediaError,
+        mediaMetadata: input.mediaMetadata ?? Prisma.JsonNull,
       },
       select: TICKET_MESSAGE_SELECT,
     });
