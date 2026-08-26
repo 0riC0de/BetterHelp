@@ -1,4 +1,4 @@
-import type { Ticket, TicketMessage } from "./ticket";
+import type { Ticket, TicketMessage } from "@/features/tickets/model";
 
 export type ConnectionStatus =
   | "syncing"

@@ -17,6 +17,7 @@ import {
   type TicketDto,
 } from "../domain/ticket-view.js";
 import type { TriageResult } from "../domain/triage.js";
+import { inferMediaMimeType } from "../domain/infer-media-mime-type.js";
 import {
   getMediaPlaceholder,
   isSupportedMediaMimeType,
@@ -24,6 +25,7 @@ import {
   normalizeMediaMimeType,
 } from "../domain/media.js";
 import { publishTicketEvent } from "../realtime/ticket-events.js";
+import { configureProfilePictureUrlProvider } from "../packages/profile-pictures/profile-picture.service.js";
 import { HttpError } from "../errors/http-error.js";
 import { getErrorMessage } from "../utils/errors.js";
 import { triageIssueWithGemini } from "./gemini.service.js";
@@ -179,7 +181,7 @@ async function extractTicketRequest(
     try {
       const media = await message.downloadMedia();
       const byteLength = media ? Buffer.byteLength(media.data, "base64") : 0;
-      const mimeType = media ? normalizeMediaMimeType(media.mimetype) : "";
+      const mimeType = media ? inferMediaMimeType(media.mimetype, message.type, media.filename) : "";
       if (
         media &&
         isSupportedMediaMimeType(mimeType) &&
@@ -191,7 +193,7 @@ async function extractTicketRequest(
         mediaFileName = media.filename ?? null;
       }
     } catch (error: unknown) {
-      console.warn("WhatsApp image download failed", {
+      console.warn("WhatsApp media download failed", {
         messageReference,
         reason: getErrorMessage(error),
       });
@@ -220,6 +222,8 @@ export async function refreshWhatsAppProfilePictureUrl(
     return null;
   }
 }
+
+configureProfilePictureUrlProvider(refreshWhatsAppProfilePictureUrl);
 
 function createTriageReply(triage: TriageResult): string {
   if (triage.needsPcClarification) {

@@ -8,7 +8,7 @@ import {
   updateTicketArchive,
   updateTicketStatus,
 } from "../controllers/ticket.controller.js";
-import { getProfilePicture } from "../controllers/profile-picture.controller.js";
+import { getProfilePicture } from "../packages/profile-pictures/profile-picture.controller.js";
 import { getTicketMessageMedia } from "../controllers/ticket-media.controller.js";
 import { requireTechnician } from "../middleware/auth.middleware.js";
 import { requireDashboardOrigin } from "../security/origins.js";

@@ -18,7 +18,7 @@ import { useRouter } from "next/navigation";
 
 import { ApiError } from "@/services/api";
 import { useAuth } from "@/providers/AuthProvider";
-import LoginPageSkeleton from "@/components/LoginPageSkeleton";
+import LoadingSkeleton from "@/components/feedback/LoadingSkeleton";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -50,7 +50,7 @@ export default function LoginPage() {
     }
   }
 
-  if (auth.status === "loading") return <LoginPageSkeleton />;
+  if (auth.status === "loading") return <LoadingSkeleton variant="form" />;
 
   return (
     <Box
