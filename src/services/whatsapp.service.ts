@@ -19,6 +19,7 @@ import {
 } from "../domain/ticket-view.js";
 import type { TriageResult } from "../domain/triage.js";
 import { createMediaFileName, inferMediaMimeType } from "../domain/infer-media-mime-type.js";
+import { createMediaStorageKey, saveMediaFile } from "../domain/media-storage.js";
 import {
   getMediaPlaceholder,
   isSupportedMediaMimeType,
@@ -60,6 +61,7 @@ interface IncomingTicketRequest {
   profilePictureData: string | null;
   mediaMimeType: string | null;
   mediaData: string | null;
+  mediaStorageKey: string | null;
   mediaFileName: string | null;
   mediaError: string | null;
   mediaMetadata: PrismaTypes.InputJsonValue | null;
@@ -76,6 +78,13 @@ interface WhatsAppMediaMetadata {
   hasMediaKey: boolean;
   hasFileHash: boolean;
   hasEncFileHash: boolean;
+  messageIdInfo: {
+    idType: string;
+    idKeys: string[];
+    hasSerialized: boolean;
+    serializedValue: string | null;
+    rawIdValue: string | null;
+  };
 }
 
 interface WhatsAppMediaDownloadAttempt {
@@ -221,6 +230,7 @@ function getNumberProperty(record: Record<string, unknown> | null, key: string):
 function getWhatsAppMediaMetadata(message: Message): WhatsAppMediaMetadata {
   const rawData = getRecord(message.rawData);
   const mediaData = getRecord(rawData?.mediaData);
+  const idRecord = getRecord(message.id);
   return {
     messageType: message.type,
     hasMedia: message.hasMedia,
@@ -232,6 +242,13 @@ function getWhatsAppMediaMetadata(message: Message): WhatsAppMediaMetadata {
     hasMediaKey: Boolean(getStringProperty(rawData, "mediaKey") ?? message.mediaKey),
     hasFileHash: Boolean(getStringProperty(rawData, "filehash")),
     hasEncFileHash: Boolean(getStringProperty(rawData, "encFilehash")),
+    messageIdInfo: {
+      idType: idRecord ? "object" : typeof message.id,
+      idKeys: idRecord ? Object.keys(idRecord).sort().slice(0, 40) : [],
+      hasSerialized: Boolean(idRecord?._serialized),
+      serializedValue: typeof idRecord?._serialized === "string" ? idRecord?._serialized : null,
+      rawIdValue: typeof idRecord?.id === "string" ? idRecord?.id : null,
+    },
   };
 }
 
@@ -296,18 +313,30 @@ async function downloadRawMessageMedia(
     });
 
     try {
-      if (!messageId) return { ok: false, reason: "message_not_found", error: null, byteLength: 0, declaredMimeType: null, fileName: null, strategy: "lookup", metadata: null };
+      const idObject = (messageId && typeof messageId === "object") ? messageId : null;
+      const idString = (typeof messageId === "string" && messageId) ? messageId
+        : (idObject?._serialized ?? idObject?.id ?? null);
+      const idCandidates = [idObject, idString].filter(Boolean) as unknown[];
+      if (!idCandidates.length) return { ok: false, reason: "message_not_found", error: null, byteLength: 0, declaredMimeType: null, fileName: null, strategy: "lookup", metadata: null };
       const collections = whatsappWindow.require("WAWebCollections");
-      if (messageId) {
+      for (const key of idCandidates) {
+        if (msg) break;
         try {
-          msg = collections.Msg.get(messageId);
+          msg = collections.Msg.get(key);
         } catch {
           msg = undefined;
         }
       }
       if (!msg) {
         try {
-          msg = (await collections.Msg.getMessagesById([messageId]))?.messages?.[0];
+          msg = (await collections.Msg.getMessagesById(idCandidates as string[]))?.messages?.[0];
+        } catch {
+          msg = undefined;
+        }
+      }
+      if (!msg) {
+        try {
+          msg = (await collections.Msg.getMessagesById([idObject ?? idString] as string[]))?.messages?.[0];
         } catch (lookupError) {
           return { ok: false, reason: "message_lookup_threw", error: lookupError instanceof Error ? lookupError.message : String(lookupError), byteLength: 0, declaredMimeType: null, fileName: null, strategy: "lookup", metadata: null };
         }
@@ -387,7 +416,7 @@ async function downloadRawMessageMedia(
         metadata: metadata(),
       };
     }
-  }, getMessageSerializedId(message) ?? "");
+  }, message.id);
   } catch (error: unknown) {
     browserResult = {
       ok: false,
@@ -532,6 +561,7 @@ async function extractTicketRequest(
   let mediaMimeType: string | null = null;
   let mediaData: string | null = null;
   let mediaFileName: string | null = null;
+  let mediaStorageKeyForMessage: string | null = null;
   let mediaError: string | null = null;
   let mediaMetadata: PrismaTypes.InputJsonValue | null = null;
   if (message.hasMedia) {
@@ -566,6 +596,10 @@ async function extractTicketRequest(
         mediaMimeType = mimeType;
         mediaData = media.data;
         mediaFileName = createMediaFileName(messageReference, mimeType, media.filename ?? initialMetadata.fileName);
+        const mediaStorageExtension = mimeType?.split("/")[1]?.split(";")[0] ?? null;
+        const mediaStorageKey = createMediaStorageKey(`${messageReference}:${message.timestamp}`, mediaStorageExtension);
+        saveMediaFile(mediaStorageKey, Buffer.from(media.data, "base64"), mimeType);
+        mediaStorageKeyForMessage = mediaStorageKey;
         mediaMetadata = toJsonObject({
           initialMetadata,
           attempts: mediaDownload.attempts,
@@ -617,6 +651,7 @@ async function extractTicketRequest(
     profilePictureData,
     mediaMimeType,
     mediaData,
+    mediaStorageKey: mediaStorageKeyForMessage,
     mediaFileName,
     mediaError,
     mediaMetadata,
@@ -730,6 +765,7 @@ export async function handleIncomingMessage(message: Message): Promise<void> {
       body: request.rawMessage,
       mediaMimeType: request.mediaMimeType,
       mediaData: request.mediaData,
+      mediaStorageKey: request.mediaStorageKey,
       mediaFileName: request.mediaFileName,
       mediaError: request.mediaError,
       mediaMetadata: request.mediaMetadata,

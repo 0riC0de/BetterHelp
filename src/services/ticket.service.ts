@@ -27,6 +27,7 @@ export interface IncomingMessageInput {
   body: string;
   mediaMimeType: string | null;
   mediaData: string | null;
+  mediaStorageKey: string | null;
   mediaFileName: string | null;
   mediaError: string | null;
   mediaMetadata: PrismaTypes.InputJsonValue | null;
@@ -154,6 +155,7 @@ async function persistIncomingMessage(input: IncomingMessageInput): Promise<Mess
         createdAt: input.occurredAt,
         mediaMimeType: input.mediaMimeType,
         mediaData: input.mediaData,
+        mediaStorageKey: input.mediaStorageKey,
         mediaFileName: input.mediaFileName,
         mediaError: input.mediaError,
         mediaMetadata: input.mediaMetadata ?? Prisma.JsonNull,
@@ -191,7 +193,7 @@ export async function createPendingOutgoingMessage(
   technicianId: number,
   body: string,
   clientRequestId: string,
-  media?: { mimeType: string; data: string; fileName: string },
+  media?: { mimeType: string; data: string; fileName: string; storageKey?: string | null },
 ): Promise<MessageResult> {
   const existing = await prisma.ticketMessage.findUnique({
     where: { clientRequestId },
@@ -248,6 +250,7 @@ export async function createPendingOutgoingMessage(
         ...(media ? {
           mediaMimeType: media.mimeType,
           mediaData: media.data,
+          mediaStorageKey: media.storageKey ?? null,
           mediaFileName: media.fileName,
         } : {}),
       },

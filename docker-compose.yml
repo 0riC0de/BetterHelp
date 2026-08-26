@@ -42,6 +42,7 @@ services:
     volumes:
       - wwebjs_auth:/app/.wwebjs_auth
       - wwebjs_cache:/app/.wwebjs_cache
+      - media_storage:/app/data/media
     tty: true
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
@@ -65,3 +66,4 @@ volumes:
   postgres_data:
   wwebjs_auth:
   wwebjs_cache:
+  media_storage:

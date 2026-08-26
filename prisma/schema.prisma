@@ -35,6 +35,7 @@ model Ticket {
   profilePictureUrl String?
   profilePictureMimeType String?
   profilePictureData String?
+  profilePictureStorageKey String?
   machineId       Int?
   userPhone       String
   userName        String?
@@ -89,6 +90,7 @@ model TicketMessage {
   sentAt             DateTime?
   mediaMimeType      String?
   mediaData          String?
+  mediaStorageKey    String?
   mediaFileName      String?
   mediaError         String?
   mediaMetadata      Json?

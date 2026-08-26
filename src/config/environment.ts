@@ -135,6 +135,11 @@ export function shouldUseSecureAuthCookies(): boolean {
   return configuredValue === "true";
 }
 
+export function getMediaStorageDirectory(): string {
+  const configuredDirectory = readTrimmedEnvironmentVariable("MEDIA_STORAGE_DIR");
+  return configuredDirectory ?? "data/media";
+}
+
 export function getTrustProxyHops(): number | false {
   const configuredHops = readTrimmedEnvironmentVariable("TRUST_PROXY_HOPS");
   if (!configuredHops) return false;
