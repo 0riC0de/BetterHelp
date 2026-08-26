@@ -13,7 +13,7 @@ export async function getDatabaseSummary(): Promise<DatabaseSummary> {
     prisma.ticket.count({ where: { archivedAt: { not: null } } }),
     prisma.ticketMessage.count(),
     prisma.ticketMessage.count({ where: { mediaData: { not: null } } }),
-    prisma.ticket.count({ where: { profilePictureUrl: { not: null } } }),
+    prisma.ticket.count({ where: { OR: [{ profilePictureUrl: { not: null } }, { profilePictureData: { not: null } }] } }),
     prisma.machine.count(),
     prisma.department.count(),
     prisma.wakeAttempt.count(),
@@ -31,7 +31,10 @@ export async function clearDatabaseTarget(target: ClearTarget): Promise<DataMain
     if (target === "message_history") affectedRows = (await transaction.ticketMessage.deleteMany()).count;
     if (target === "ticket_media") affectedRows = (await transaction.ticketMessage.updateMany({ where: { mediaData: { not: null } }, data: { mediaData: null, mediaMimeType: null, mediaFileName: null } })).count;
     if (target === "profile_pictures") {
-      affectedRows = (await transaction.ticket.updateMany({ where: { profilePictureUrl: { not: null } }, data: { profilePictureUrl: null } })).count;
+      affectedRows = (await transaction.ticket.updateMany({
+        where: { OR: [{ profilePictureUrl: { not: null } }, { profilePictureData: { not: null } }] },
+        data: { profilePictureUrl: null, profilePictureMimeType: null, profilePictureData: null },
+      })).count;
       clearProfilePictureCache();
     }
     if (target === "wake_attempts") affectedRows = (await transaction.wakeAttempt.deleteMany()).count;

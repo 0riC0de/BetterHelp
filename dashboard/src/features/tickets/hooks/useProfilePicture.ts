@@ -4,11 +4,11 @@ import { useEffect, useState } from "react";
 
 import { getProfilePictureBlob } from "../api/ticketApi";
 
-export function useProfilePicture(chatId: string | null, cacheKey: string | null): string | undefined {
+export function useProfilePicture(chatId: string | null, cacheKey: string | null, enabled: boolean): string | undefined {
   const [source, setSource] = useState<string>();
 
   useEffect(() => {
-    if (!chatId) return;
+    if (!chatId || !enabled) return;
     let objectUrl: string | undefined;
     let isActive = true;
     const task = window.setTimeout(() => {
@@ -26,7 +26,7 @@ export function useProfilePicture(chatId: string | null, cacheKey: string | null
       window.clearTimeout(task);
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [cacheKey, chatId]);
+  }, [cacheKey, chatId, enabled]);
 
   return source;
 }

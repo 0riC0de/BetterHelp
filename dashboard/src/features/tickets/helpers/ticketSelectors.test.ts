@@ -22,6 +22,7 @@ const ticket: Ticket = {
   updatedAt: new Date().toISOString(),
   resolvedAt: null,
   profilePictureUrl: null,
+  hasProfilePicture: false,
   machineId: null,
   archivedAt: null,
 };

@@ -4,7 +4,11 @@ import { useProfilePicture } from "../hooks/useProfilePicture";
 import type { ContactAvatarProps } from "./ContactAvatarProps";
 
 export default function ContactAvatar({ ticket, size = 42 }: ContactAvatarProps) {
-  const source = useProfilePicture(ticket.chatId, ticket.profilePictureUrl);
+  const source = useProfilePicture(
+    ticket.chatId,
+    `${ticket.profilePictureUrl ?? ""}:${ticket.hasProfilePicture}:${ticket.updatedAt}`,
+    ticket.hasProfilePicture || Boolean(ticket.profilePictureUrl),
+  );
   const fallback = (ticket.userName ?? ticket.userPhone).trim()[0]?.toUpperCase() ?? "?";
   return (
     <Avatar

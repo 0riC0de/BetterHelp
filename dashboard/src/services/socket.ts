@@ -6,18 +6,10 @@ import { API_URL } from "./api";
 
 type DashboardSocket = Socket<ServerToClientEvents, Record<string, never>>;
 
-function getSocketTransports(): Array<"polling" | "websocket"> {
-  const configured = process.env.NEXT_PUBLIC_SOCKET_TRANSPORTS
-    ?.split(",")
-    .map((transport) => transport.trim())
-    .filter((transport): transport is "polling" | "websocket" => transport === "polling" || transport === "websocket");
-  return configured?.length ? configured : ["polling"];
-}
-
 export function createDashboardSocket(): DashboardSocket {
   return io(`${API_URL}/dashboard`, {
     autoConnect: false,
-    transports: getSocketTransports(),
+    transports: ["polling"],
     withCredentials: true,
     reconnection: true,
     reconnectionDelay: 1_000,

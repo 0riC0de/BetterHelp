@@ -35,7 +35,7 @@ function getRefreshCandidateChatIds(chatId: string, userPhone: string | null): s
   return [...new Set(candidates)];
 }
 
-async function downloadProfilePicture(value: string): Promise<ProfilePicture | null> {
+export async function downloadProfilePictureFromUrl(value: string): Promise<ProfilePicture | null> {
   if (!isAllowedProfilePictureUrl(value)) return null;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 8_000);
@@ -80,13 +80,29 @@ export async function fetchProfilePicture(
 
   const ticket = await prisma.ticket.findFirst({
     where: { chatId },
-    select: { profilePictureUrl: true, userPhone: true },
+    select: { profilePictureUrl: true, profilePictureMimeType: true, profilePictureData: true, userPhone: true },
     orderBy: { updatedAt: "desc" },
   });
 
+  if (ticket?.profilePictureData && ticket.profilePictureMimeType) {
+    const picture = {
+      buffer: Buffer.from(ticket.profilePictureData, "base64"),
+      mimeType: ticket.profilePictureMimeType,
+    };
+    profileCache.set(chatId, { expiresAt: Date.now() + PROFILE_CACHE_TTL_MS, picture });
+    return picture;
+  }
+
   if (ticket?.profilePictureUrl) {
-    const picture = await downloadProfilePicture(ticket.profilePictureUrl);
+    const picture = await downloadProfilePictureFromUrl(ticket.profilePictureUrl);
     if (picture) {
+      await prisma.ticket.updateMany({
+        where: { chatId },
+        data: {
+          profilePictureMimeType: picture.mimeType,
+          profilePictureData: picture.buffer.toString("base64"),
+        },
+      });
       profileCache.set(chatId, { expiresAt: Date.now() + PROFILE_CACHE_TTL_MS, picture });
       return picture;
     }
@@ -102,7 +118,16 @@ export async function fetchProfilePicture(
     return null;
   }
   await prisma.ticket.updateMany({ where: { chatId }, data: { profilePictureUrl: refreshedUrl } });
-  const picture = await downloadProfilePicture(refreshedUrl);
+  const picture = await downloadProfilePictureFromUrl(refreshedUrl);
+  if (picture) {
+    await prisma.ticket.updateMany({
+      where: { chatId },
+      data: {
+        profilePictureMimeType: picture.mimeType,
+        profilePictureData: picture.buffer.toString("base64"),
+      },
+    });
+  }
   profileCache.set(chatId, {
     expiresAt: Date.now() + (picture ? PROFILE_CACHE_TTL_MS : NEGATIVE_CACHE_TTL_MS),
     picture,

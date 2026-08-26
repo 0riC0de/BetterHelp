@@ -6,6 +6,7 @@ export interface Ticket {
   id: number;
   chatId: string | null;
   profilePictureUrl: string | null;
+  hasProfilePicture: boolean;
   machineId: number | null;
   userPhone: string;
   userName: string | null;

@@ -25,7 +25,7 @@ import {
   normalizeMediaMimeType,
 } from "../domain/media.js";
 import { publishTicketEvent } from "../realtime/ticket-events.js";
-import { configureProfilePictureUrlProvider } from "../packages/profile-pictures/profile-picture.service.js";
+import { configureProfilePictureUrlProvider, downloadProfilePictureFromUrl } from "../packages/profile-pictures/profile-picture.service.js";
 import { HttpError } from "../errors/http-error.js";
 import { getErrorMessage } from "../utils/errors.js";
 import { triageIssueWithGemini } from "./gemini.service.js";
@@ -54,6 +54,8 @@ interface IncomingTicketRequest {
   userName: string | null;
   rawMessage: string;
   profilePictureUrl: string | null;
+  profilePictureMimeType: string | null;
+  profilePictureData: string | null;
   mediaMimeType: string | null;
   mediaData: string | null;
   mediaFileName: string | null;
@@ -169,8 +171,15 @@ async function extractTicketRequest(
 ): Promise<IncomingTicketRequest> {
   const contact = await getContactWithTimeout(message, messageReference);
   let profilePictureUrl: string | null = null;
+  let profilePictureMimeType: string | null = null;
+  let profilePictureData: string | null = null;
   try {
     profilePictureUrl = (await contact?.getProfilePicUrl()) || null;
+    if (profilePictureUrl) {
+      const profilePicture = await downloadProfilePictureFromUrl(profilePictureUrl);
+      profilePictureMimeType = profilePicture?.mimeType ?? null;
+      profilePictureData = profilePicture?.buffer.toString("base64") ?? null;
+    }
   } catch {
     profilePictureUrl = null;
   }
@@ -223,6 +232,8 @@ async function extractTicketRequest(
     userName: getUserName(contact),
     rawMessage: message.body.trim() || getMediaPlaceholder(mediaMimeType),
     profilePictureUrl,
+    profilePictureMimeType,
+    profilePictureData,
     mediaMimeType,
     mediaData,
     mediaFileName,
@@ -331,6 +342,8 @@ export async function handleIncomingMessage(message: Message): Promise<void> {
       userPhone: request.userPhone,
       userName: request.userName,
       profilePictureUrl: request.profilePictureUrl,
+      profilePictureMimeType: request.profilePictureMimeType,
+      profilePictureData: request.profilePictureData,
       body: request.rawMessage,
       mediaMimeType: request.mediaMimeType,
       mediaData: request.mediaData,

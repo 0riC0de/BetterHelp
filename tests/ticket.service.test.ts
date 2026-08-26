@@ -35,6 +35,7 @@ function ticketRecord(status: string, resolvedAt: Date | null) {
     updatedAt: new Date("2026-08-25T08:05:00.000Z"),
     resolvedAt,
     profilePictureUrl: null,
+    profilePictureData: null,
     machineId: null,
     archivedAt: null,
   };

@@ -52,6 +52,7 @@ const ticket = {
   updatedAt: "2026-08-25T08:05:00.000Z",
   resolvedAt: "2026-08-25T08:05:00.000Z",
   profilePictureUrl: null,
+  hasProfilePicture: false,
   machineId: null,
   archivedAt: null,
 };

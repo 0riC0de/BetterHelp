@@ -22,6 +22,8 @@ export interface IncomingMessageInput {
   userPhone: string;
   userName: string | null;
   profilePictureUrl: string | null;
+  profilePictureMimeType: string | null;
+  profilePictureData: string | null;
   body: string;
   mediaMimeType: string | null;
   mediaData: string | null;
@@ -108,6 +110,10 @@ async function persistIncomingMessage(input: IncomingMessageInput): Promise<Mess
             userName: input.userName ?? activeTicket.userName,
             userPhone: input.userPhone,
             profilePictureUrl: input.profilePictureUrl ?? activeTicket.profilePictureUrl,
+            ...(input.profilePictureMimeType && input.profilePictureData ? {
+              profilePictureMimeType: input.profilePictureMimeType,
+              profilePictureData: input.profilePictureData,
+            } : {}),
             archivedAt: null,
             updatedAt: input.occurredAt,
           },
@@ -127,6 +133,8 @@ async function persistIncomingMessage(input: IncomingMessageInput): Promise<Mess
             userPhone: input.userPhone,
             userName: input.userName,
             profilePictureUrl: input.profilePictureUrl,
+            profilePictureMimeType: input.profilePictureMimeType,
+            profilePictureData: input.profilePictureData,
             rawMessage: input.body,
             status: "open",
             updatedAt: input.occurredAt,

@@ -7,6 +7,7 @@ export const TICKET_VIEW_SELECT = {
   id: true,
   chatId: true,
   profilePictureUrl: true,
+  profilePictureData: true,
   machineId: true,
   userPhone: true,
   userName: true,
@@ -33,6 +34,7 @@ export interface TicketDto {
   id: number;
   chatId: string | null;
   profilePictureUrl: string | null;
+  hasProfilePicture: boolean;
   machineId: number | null;
   userPhone: string;
   userName: string | null;
@@ -53,9 +55,22 @@ export interface TicketDto {
 
 export function toTicketDto(ticket: TicketRecord): TicketDto {
   return {
-    ...ticket,
+    id: ticket.id,
+    chatId: ticket.chatId,
+    profilePictureUrl: ticket.profilePictureUrl,
+    hasProfilePicture: Boolean(ticket.profilePictureData),
+    machineId: ticket.machineId,
+    userPhone: ticket.userPhone,
+    userName: ticket.userName,
+    pcNumber: ticket.pcNumber,
+    rawMessage: ticket.rawMessage,
+    summary: ticket.summary,
     status: ticket.status as TicketStatus,
     aiDecision: ticket.aiDecision as TriageClassification | null,
+    aiConfidence: ticket.aiConfidence,
+    suggestedScript: ticket.suggestedScript,
+    scriptExecuted: ticket.scriptExecuted,
+    executionOutput: ticket.executionOutput,
     createdAt: ticket.createdAt.toISOString(),
     updatedAt: ticket.updatedAt.toISOString(),
     resolvedAt: ticket.resolvedAt?.toISOString() ?? null,
