@@ -126,8 +126,18 @@ function hasDirectChatSuffix(chatId: string): boolean {
   return DIRECT_CHAT_SUFFIXES.some((suffix) => chatId.endsWith(suffix));
 }
 
+function getMessageSerializedId(message: Message): string | null {
+  const id = message.id as unknown;
+  if (id == null) return null;
+  if (typeof id === "string") return id;
+  const record = id as { _serialized?: unknown; id?: unknown };
+  if (typeof record._serialized === "string") return record._serialized;
+  if (typeof record.id === "string") return record.id;
+  return null;
+}
+
 function getMessageReference(message: Message): string {
-  return message.id?._serialized?.slice(-12) || `time-${message.timestamp}`;
+  return getMessageSerializedId(message)?.slice(-12) || `time-${message.timestamp}`;
 }
 
 function rememberMessage(messageId: string): void {
@@ -286,8 +296,22 @@ async function downloadRawMessageMedia(
     });
 
     try {
+      if (!messageId) return { ok: false, reason: "message_not_found", error: null, byteLength: 0, declaredMimeType: null, fileName: null, strategy: "lookup", metadata: null };
       const collections = whatsappWindow.require("WAWebCollections");
-      msg = collections.Msg.get(messageId) || (await collections.Msg.getMessagesById([messageId]))?.messages?.[0];
+      if (messageId) {
+        try {
+          msg = collections.Msg.get(messageId);
+        } catch {
+          msg = undefined;
+        }
+      }
+      if (!msg) {
+        try {
+          msg = (await collections.Msg.getMessagesById([messageId]))?.messages?.[0];
+        } catch (lookupError) {
+          return { ok: false, reason: "message_lookup_threw", error: lookupError instanceof Error ? lookupError.message : String(lookupError), byteLength: 0, declaredMimeType: null, fileName: null, strategy: "lookup", metadata: null };
+        }
+      }
 
       if (!msg) return { ok: false, reason: "message_not_found", error: null, byteLength: 0, declaredMimeType: null, fileName: null, strategy: "lookup", metadata: null };
 
@@ -363,7 +387,7 @@ async function downloadRawMessageMedia(
         metadata: metadata(),
       };
     }
-  }, message.id._serialized);
+  }, getMessageSerializedId(message) ?? "");
   } catch (error: unknown) {
     browserResult = {
       ok: false,
@@ -657,7 +681,7 @@ async function saveTicketTriage(
 }
 
 export async function handleIncomingMessage(message: Message): Promise<void> {
-  const messageId = message.id?._serialized;
+  const messageId = getMessageSerializedId(message);
   const messageReference = getMessageReference(message);
 
   console.log("WhatsApp message received", {
