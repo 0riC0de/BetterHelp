@@ -89,8 +89,30 @@ interface WhatsAppMediaDownloadAttempt {
 }
 
 interface WhatsAppMediaDownloadResult {
-  media: Awaited<ReturnType<Message["downloadMedia"]>> | undefined;
+  media: WhatsAppDownloadedMedia | undefined;
   attempts: WhatsAppMediaDownloadAttempt[];
+  rawFallback: WhatsAppRawMediaDownloadResult | null;
+}
+
+interface WhatsAppDownloadedMedia {
+  mimetype: string | null | undefined;
+  data: string;
+  filename?: string | null;
+  filesize?: number | null;
+}
+
+interface WhatsAppRawMediaDownloadResult {
+  returnedMedia: boolean;
+  reason: string | null;
+  error: string | null;
+  byteLength: number;
+  declaredMimeType: string | null;
+  fileName: string | null;
+  metadata: PrismaTypes.InputJsonValue | null;
+}
+
+interface PuppeteerPageLike {
+  evaluate<T>(pageFunction: (...args: never[]) => T | Promise<T>, ...args: unknown[]): Promise<T>;
 }
 
 let client: WhatsAppClient | undefined;
@@ -210,6 +232,111 @@ function toJsonObject(value: object): PrismaTypes.InputJsonObject {
   return value as PrismaTypes.InputJsonObject;
 }
 
+function getPuppeteerPage(message: Message): PuppeteerPageLike | null {
+  const messageRecord = getRecord(message);
+  const clientRecord = getRecord(messageRecord?.client) ?? getRecord(client);
+  const pageRecord = getRecord(clientRecord?.pupPage);
+  return typeof pageRecord?.evaluate === "function" ? pageRecord as unknown as PuppeteerPageLike : null;
+}
+
+async function downloadRawMessageMedia(
+  message: Message,
+  messageReference: string,
+): Promise<{ media: WhatsAppDownloadedMedia | undefined; result: WhatsAppRawMediaDownloadResult }> {
+  const page = getPuppeteerPage(message);
+  if (!page) {
+    return {
+      media: undefined,
+      result: { returnedMedia: false, reason: "puppeteer_page_unavailable", error: null, byteLength: 0, declaredMimeType: null, fileName: null, metadata: null },
+    };
+  }
+
+  const browserResult = await page.evaluate(async (messageId) => {
+    type BrowserRecord = Record<string, any>;
+    const whatsappWindow = globalThis as unknown as {
+      require: (moduleName: string) => BrowserRecord;
+      WWebJS: { arrayBufferToBase64Async: (buffer: unknown) => Promise<string> };
+    };
+    const collections = whatsappWindow.require("WAWebCollections");
+    const msg = collections.Msg.get(messageId) || (await collections.Msg.getMessagesById([messageId]))?.messages?.[0];
+    const metadata = () => ({
+      messageType: msg?.type ?? null,
+      declaredMimeType: msg?.mimetype ?? msg?.mediaData?.mimetype ?? null,
+      fileName: msg?.filename ?? msg?.mediaData?.filename ?? null,
+      size: msg?.size ?? msg?.mediaData?.size ?? null,
+      mediaStage: msg?.mediaData?.mediaStage ?? null,
+      hasDirectPath: Boolean(msg?.directPath),
+      hasMediaKey: Boolean(msg?.mediaKey),
+      hasFileHash: Boolean(msg?.filehash),
+      hasEncFileHash: Boolean(msg?.encFilehash),
+    });
+
+    if (!msg) return { ok: false, reason: "message_not_found", error: null, byteLength: 0, declaredMimeType: null, fileName: null, metadata: null };
+    if (!msg.directPath || !msg.mediaKey) return { ok: false, reason: "missing_raw_media_identifiers", error: null, byteLength: 0, declaredMimeType: msg.mimetype ?? null, fileName: msg.filename ?? null, metadata: metadata() };
+
+    try {
+      if (msg.mediaData?.mediaStage !== "RESOLVED") {
+        try {
+          await msg.downloadMedia({ downloadEvenIfExpensive: true, rmrReason: 1 });
+        } catch {
+          // Continue to direct decrypt; some WhatsApp Web builds throw even with valid media identifiers.
+        }
+        for (let poll = 0; poll < 20; poll += 1) {
+          const stage = String(msg.mediaData?.mediaStage ?? "");
+          if (stage === "RESOLVED" || stage.includes("ERROR")) break;
+          await new Promise((resolve) => setTimeout(resolve, 500));
+        }
+      }
+
+      const downloadManager = whatsappWindow.require("WAWebDownloadManager").downloadManager;
+      const decryptedMedia = await downloadManager.downloadAndMaybeDecrypt({
+        directPath: msg.directPath,
+        encFilehash: msg.encFilehash,
+        filehash: msg.filehash,
+        mediaKey: msg.mediaKey,
+        mediaKeyTimestamp: msg.mediaKeyTimestamp,
+        type: msg.type,
+        signal: new AbortController().signal,
+        downloadQpl: { addAnnotations() { return this; }, addPoint() { return this; } },
+      });
+      const data = await whatsappWindow.WWebJS.arrayBufferToBase64Async(decryptedMedia);
+      const byteLength = data ? Math.ceil(data.length * 0.75) : 0;
+      return {
+        ok: Boolean(data),
+        reason: data ? null : "raw_download_empty",
+        error: null,
+        byteLength,
+        declaredMimeType: msg.mimetype ?? null,
+        fileName: msg.filename ?? null,
+        metadata: metadata(),
+        media: data ? { data, mimetype: msg.mimetype ?? null, filename: msg.filename ?? null, filesize: msg.size ?? null } : undefined,
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        reason: "raw_download_threw",
+        error: error instanceof Error ? error.message : String(error),
+        byteLength: 0,
+        declaredMimeType: msg.mimetype ?? null,
+        fileName: msg.filename ?? null,
+        metadata: metadata(),
+      };
+    }
+  }, message.id._serialized);
+
+  const result: WhatsAppRawMediaDownloadResult = {
+    returnedMedia: Boolean(browserResult.ok && browserResult.media),
+    reason: browserResult.reason,
+    error: browserResult.error,
+    byteLength: browserResult.byteLength,
+    declaredMimeType: browserResult.declaredMimeType,
+    fileName: browserResult.fileName,
+    metadata: browserResult.metadata ? toJsonObject(browserResult.metadata) : null,
+  };
+  console.log("WhatsApp raw media download fallback result", { messageReference, ...result });
+  return { media: browserResult.ok ? browserResult.media : undefined, result };
+}
+
 async function downloadMessageMediaWithRetry(
   message: Message,
   messageReference: string,
@@ -256,7 +383,7 @@ async function downloadMessageMediaWithRetry(
         fileName: media?.filename ?? null,
         byteLength,
       });
-      if (media?.data && byteLength > 0) return { media, attempts };
+      if (media?.data && byteLength > 0) return { media, attempts, rawFallback: null };
     } catch (error: unknown) {
       attempts.push({
         attempt: index + 1,
@@ -275,7 +402,9 @@ async function downloadMessageMediaWithRetry(
     }
   }
 
-  return { media: undefined, attempts };
+  const rawFallback = await downloadRawMessageMedia(message, messageReference);
+  if (rawFallback.media?.data) return { media: rawFallback.media, attempts, rawFallback: rawFallback.result };
+  return { media: undefined, attempts, rawFallback: rawFallback.result };
 }
 
 async function getContactWithTimeout(
@@ -362,6 +491,7 @@ async function extractTicketRequest(
         mediaMetadata = toJsonObject({
           initialMetadata,
           attempts: mediaDownload.attempts,
+          rawFallback: mediaDownload.rawFallback,
           saved: { mimeType, fileName: mediaFileName, byteLength },
         });
       } else if (message.hasMedia) {
@@ -369,6 +499,7 @@ async function extractTicketRequest(
         mediaMetadata = toJsonObject({
           initialMetadata,
           attempts: mediaDownload.attempts,
+          rawFallback: mediaDownload.rawFallback,
           rejected: {
             reason: mediaError,
             declaredMimeType: media?.mimetype ?? initialMetadata.declaredMimeType,
