@@ -13,11 +13,11 @@ const SUPPORTED_APPLICATION_TYPES = new Set([
   "text/plain",
 ]);
 
-export function normalizeMediaMimeType(value: string): string {
-  return value.split(";", 1)[0]?.trim().toLowerCase() ?? "";
+export function normalizeMediaMimeType(value: string | null | undefined): string {
+  return value?.split(";", 1)[0]?.trim().toLowerCase() ?? "";
 }
 
-export function isSupportedMediaMimeType(value: string): boolean {
+export function isSupportedMediaMimeType(value: string | null | undefined): boolean {
   const mimeType = normalizeMediaMimeType(value);
   return (
     (mimeType.startsWith("image/") && mimeType !== "image/svg+xml") ||

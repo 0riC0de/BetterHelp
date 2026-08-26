@@ -11,7 +11,7 @@ function getSocketTransports(): Array<"polling" | "websocket"> {
     ?.split(",")
     .map((transport) => transport.trim())
     .filter((transport): transport is "polling" | "websocket" => transport === "polling" || transport === "websocket");
-  return configured?.length ? configured : ["polling", "websocket"];
+  return configured?.length ? configured : ["polling"];
 }
 
 export function createDashboardSocket(): DashboardSocket {

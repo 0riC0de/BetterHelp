@@ -11,7 +11,7 @@ export async function getProfilePicture(
     const result = await fetchProfilePicture(req.params.chatId);
     if (!result) {
       res.setHeader("Cache-Control", "private, max-age=300");
-      res.status(404).end();
+      res.status(204).end();
       return;
     }
     res.setHeader("Content-Type", result.mimeType);

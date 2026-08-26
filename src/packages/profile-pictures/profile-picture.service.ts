@@ -28,6 +28,13 @@ function isAllowedProfilePictureUrl(value: string): boolean {
   }
 }
 
+function getRefreshCandidateChatIds(chatId: string, userPhone: string | null): string[] {
+  const candidates = [chatId];
+  const phoneDigits = userPhone?.replace(/\D/g, "") ?? "";
+  if (phoneDigits) candidates.push(`${phoneDigits}@c.us`);
+  return [...new Set(candidates)];
+}
+
 async function downloadProfilePicture(value: string): Promise<ProfilePicture | null> {
   if (!isAllowedProfilePictureUrl(value)) return null;
   const controller = new AbortController();
@@ -73,7 +80,7 @@ export async function fetchProfilePicture(
 
   const ticket = await prisma.ticket.findFirst({
     where: { chatId },
-    select: { profilePictureUrl: true },
+    select: { profilePictureUrl: true, userPhone: true },
     orderBy: { updatedAt: "desc" },
   });
 
@@ -85,7 +92,11 @@ export async function fetchProfilePicture(
     }
   }
 
-  const refreshedUrl = await refreshProfilePictureUrl(chatId);
+  let refreshedUrl: string | null = null;
+  for (const candidateChatId of getRefreshCandidateChatIds(chatId, ticket?.userPhone ?? null)) {
+    refreshedUrl = await refreshProfilePictureUrl(candidateChatId);
+    if (refreshedUrl) break;
+  }
   if (!refreshedUrl) {
     profileCache.set(chatId, { expiresAt: Date.now() + NEGATIVE_CACHE_TTL_MS, picture: null });
     return null;

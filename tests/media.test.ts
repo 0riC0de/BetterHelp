@@ -28,6 +28,7 @@ describe("media validation", () => {
   });
 
   it("infers useful WhatsApp media types from message type and file extension", () => {
+    expect(inferMediaMimeType(undefined, "image", null)).toBe("image/jpeg");
     expect(inferMediaMimeType("application/octet-stream", "image", null)).toBe("image/jpeg");
     expect(inferMediaMimeType("application/octet-stream", "ptt", null)).toBe("audio/ogg");
     expect(inferMediaMimeType("application/octet-stream", "document", "report.pdf")).toBe("application/pdf");

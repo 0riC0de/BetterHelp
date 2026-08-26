@@ -15,6 +15,7 @@ export function useProfilePicture(chatId: string | null, cacheKey: string | null
       setSource(undefined);
       void getProfilePictureBlob(chatId).then((blob) => {
         if (!isActive) return;
+        if (!blob.size) return;
         objectUrl = URL.createObjectURL(blob);
         setSource(objectUrl);
       }).catch(() => undefined);

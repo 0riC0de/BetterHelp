@@ -17,7 +17,7 @@ import {
   type TicketDto,
 } from "../domain/ticket-view.js";
 import type { TriageResult } from "../domain/triage.js";
-import { inferMediaMimeType } from "../domain/infer-media-mime-type.js";
+import { createMediaFileName, inferMediaMimeType } from "../domain/infer-media-mime-type.js";
 import {
   getMediaPlaceholder,
   isSupportedMediaMimeType,
@@ -182,6 +182,14 @@ async function extractTicketRequest(
       const media = await message.downloadMedia();
       const byteLength = media ? Buffer.byteLength(media.data, "base64") : 0;
       const mimeType = media ? inferMediaMimeType(media.mimetype, message.type, media.filename) : "";
+      console.log("WhatsApp media download inspected", {
+        messageReference,
+        messageType: message.type,
+        declaredMimeType: media?.mimetype ?? null,
+        inferredMimeType: mimeType || null,
+        fileName: media?.filename ?? null,
+        byteLength,
+      });
       if (
         media &&
         isSupportedMediaMimeType(mimeType) &&
@@ -190,7 +198,16 @@ async function extractTicketRequest(
       ) {
         mediaMimeType = mimeType;
         mediaData = media.data;
-        mediaFileName = media.filename ?? null;
+        mediaFileName = createMediaFileName(messageReference, mimeType, media.filename);
+      } else if (message.hasMedia) {
+        console.warn("WhatsApp media ignored", {
+          messageReference,
+          messageType: message.type,
+          declaredMimeType: media?.mimetype ?? null,
+          inferredMimeType: mimeType || null,
+          byteLength,
+          maximumBytes: MAXIMUM_MEDIA_BYTES,
+        });
       }
     } catch (error: unknown) {
       console.warn("WhatsApp media download failed", {
@@ -217,8 +234,16 @@ export async function refreshWhatsAppProfilePictureUrl(
 ): Promise<string | null> {
   if (!client) return null;
   try {
-    return (await client.getProfilePicUrl(chatId)) || null;
-  } catch {
+    const url = await client.getProfilePicUrl(chatId);
+    if (url) return url;
+  } catch (error: unknown) {
+    console.warn("WhatsApp profile picture direct lookup failed", { chatId, reason: getErrorMessage(error) });
+  }
+  try {
+    const contact = await client.getContactById(chatId);
+    return (await contact.getProfilePicUrl()) || null;
+  } catch (error: unknown) {
+    console.warn("WhatsApp profile picture contact lookup failed", { chatId, reason: getErrorMessage(error) });
     return null;
   }
 }
