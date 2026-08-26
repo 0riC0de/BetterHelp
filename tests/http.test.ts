@@ -21,11 +21,16 @@ const technicianService = vi.hoisted(() => ({
   createTechnician: vi.fn(),
   deleteTechnician: vi.fn(),
 }));
+const dataMaintenanceService = vi.hoisted(() => ({
+  getDatabaseSummary: vi.fn(),
+  clearDatabaseTarget: vi.fn(),
+}));
 
 vi.mock("../src/services/auth.service.js", () => authService);
 vi.mock("../src/services/ticket.service.js", () => ticketService);
 vi.mock("../src/services/whatsapp.service.js", () => whatsappService);
 vi.mock("../src/services/technician.service.js", () => technicianService);
+vi.mock("../src/packages/data-maintenance/data-maintenance.service.js", () => dataMaintenanceService);
 
 import app from "../src/app.js";
 
@@ -70,6 +75,17 @@ const managedTechnician = {
   isActive: true,
   createdAt: "2026-08-25T08:00:00.000Z",
 };
+const databaseSummary = {
+  tickets: 3,
+  archivedTickets: 1,
+  messages: 8,
+  messagesWithMedia: 2,
+  profilePictures: 2,
+  machines: 4,
+  departments: 2,
+  wakeAttempts: 5,
+  expiredOrRevokedRefreshTokens: 6,
+};
 
 describe("helpdesk HTTP API", () => {
   beforeEach(() => {
@@ -104,6 +120,8 @@ describe("helpdesk HTTP API", () => {
     technicianService.listTechnicians.mockResolvedValue([managedTechnician]);
     technicianService.createTechnician.mockResolvedValue(managedTechnician);
     technicianService.deleteTechnician.mockResolvedValue(undefined);
+    dataMaintenanceService.getDatabaseSummary.mockResolvedValue(databaseSummary);
+    dataMaintenanceService.clearDatabaseTarget.mockResolvedValue({ target: "ticket_media", affectedRows: 2 });
   });
 
   it("reports health and uptime without authentication", async () => {
@@ -254,5 +272,60 @@ describe("helpdesk HTTP API", () => {
       .get("/api/technicians")
       .set("Cookie", "helpdesk_access=test-token")
       .expect(403);
+  });
+
+  it("allows administrators to inspect database maintenance counts", async () => {
+    const response = await request(app)
+      .get("/api/admin/database")
+      .set("Cookie", "helpdesk_access=test-token")
+      .expect(200);
+
+    expect(dataMaintenanceService.getDatabaseSummary).toHaveBeenCalledOnce();
+    expect(response.body).toEqual(databaseSummary);
+  });
+
+  it("requires administrator access for database maintenance", async () => {
+    authService.authenticateTechnician.mockResolvedValueOnce({
+      id: 2,
+      email: "tech@example.com",
+      name: "Helpdesk Tech",
+      role: "TECHNICIAN",
+      accessTokenExpiresAt: Math.floor(Date.now() / 1_000) + 900,
+    });
+
+    await request(app)
+      .get("/api/admin/database")
+      .set("Cookie", "helpdesk_access=test-token")
+      .expect(403);
+  });
+
+  it("validates clear target and confirmation before database maintenance", async () => {
+    await request(app)
+      .post("/api/admin/database/clear")
+      .set("Cookie", "helpdesk_access=test-token")
+      .set("Origin", "http://localhost:3001")
+      .send({ target: "technicians", confirmation: "DELETE technicians" })
+      .expect(400);
+
+    await request(app)
+      .post("/api/admin/database/clear")
+      .set("Cookie", "helpdesk_access=test-token")
+      .set("Origin", "http://localhost:3001")
+      .send({ target: "ticket_media", confirmation: "DELETE all" })
+      .expect(400);
+
+    expect(dataMaintenanceService.clearDatabaseTarget).not.toHaveBeenCalled();
+  });
+
+  it("clears an allowlisted database maintenance target", async () => {
+    const response = await request(app)
+      .post("/api/admin/database/clear")
+      .set("Cookie", "helpdesk_access=test-token")
+      .set("Origin", "http://localhost:3001")
+      .send({ target: "ticket_media", confirmation: "DELETE ticket_media" })
+      .expect(200);
+
+    expect(dataMaintenanceService.clearDatabaseTarget).toHaveBeenCalledWith("ticket_media");
+    expect(response.body).toEqual({ target: "ticket_media", affectedRows: 2 });
   });
 });

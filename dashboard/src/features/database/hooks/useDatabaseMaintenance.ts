@@ -21,7 +21,11 @@ export function useDatabaseMaintenance(enabled = true) {
     }
   }
 
-  useEffect(() => { if (enabled) void refresh(); }, [enabled]);
+  useEffect(() => {
+    if (!enabled) return;
+    const task = window.setTimeout(() => void refresh(), 0);
+    return () => window.clearTimeout(task);
+  }, [enabled]);
 
   async function clear(target: ClearTarget): Promise<void> {
     const confirmation = window.prompt(`Type DELETE ${target} to continue`);
