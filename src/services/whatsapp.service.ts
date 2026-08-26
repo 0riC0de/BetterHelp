@@ -108,6 +108,7 @@ interface WhatsAppRawMediaDownloadResult {
   byteLength: number;
   declaredMimeType: string | null;
   fileName: string | null;
+  strategy: string;
   metadata: PrismaTypes.InputJsonValue | null;
 }
 
@@ -247,18 +248,29 @@ async function downloadRawMessageMedia(
   if (!page) {
     return {
       media: undefined,
-      result: { returnedMedia: false, reason: "puppeteer_page_unavailable", error: null, byteLength: 0, declaredMimeType: null, fileName: null, metadata: null },
+      result: { returnedMedia: false, reason: "puppeteer_page_unavailable", error: null, byteLength: 0, declaredMimeType: null, fileName: null, strategy: "none", metadata: null },
     };
   }
 
-  const browserResult = await page.evaluate(async (messageId) => {
+  let browserResult: {
+    ok: boolean;
+    reason: string | null;
+    error: string | null;
+    byteLength: number;
+    declaredMimeType: string | null;
+    fileName: string | null;
+    strategy: string;
+    metadata: object | null;
+    media?: WhatsAppDownloadedMedia;
+  };
+  try {
+    browserResult = await page.evaluate(async (messageId) => {
     type BrowserRecord = Record<string, any>;
     const whatsappWindow = globalThis as unknown as {
       require: (moduleName: string) => BrowserRecord;
       WWebJS: { arrayBufferToBase64Async: (buffer: unknown) => Promise<string> };
     };
-    const collections = whatsappWindow.require("WAWebCollections");
-    const msg = collections.Msg.get(messageId) || (await collections.Msg.getMessagesById([messageId]))?.messages?.[0];
+    let msg: BrowserRecord | undefined;
     const metadata = () => ({
       messageType: msg?.type ?? null,
       declaredMimeType: msg?.mimetype ?? msg?.mediaData?.mimetype ?? null,
@@ -269,12 +281,39 @@ async function downloadRawMessageMedia(
       hasMediaKey: Boolean(msg?.mediaKey),
       hasFileHash: Boolean(msg?.filehash),
       hasEncFileHash: Boolean(msg?.encFilehash),
+      rawKeys: msg ? Object.keys(msg).sort().slice(0, 80) : [],
+      mediaDataKeys: msg?.mediaData ? Object.keys(msg.mediaData).sort().slice(0, 80) : [],
     });
 
-    if (!msg) return { ok: false, reason: "message_not_found", error: null, byteLength: 0, declaredMimeType: null, fileName: null, metadata: null };
-    if (!msg.directPath || !msg.mediaKey) return { ok: false, reason: "missing_raw_media_identifiers", error: null, byteLength: 0, declaredMimeType: msg.mimetype ?? null, fileName: msg.filename ?? null, metadata: metadata() };
-
     try {
+      const collections = whatsappWindow.require("WAWebCollections");
+      msg = collections.Msg.get(messageId) || (await collections.Msg.getMessagesById([messageId]))?.messages?.[0];
+
+      if (!msg) return { ok: false, reason: "message_not_found", error: null, byteLength: 0, declaredMimeType: null, fileName: null, strategy: "lookup", metadata: null };
+
+      try {
+        const directData = await msg.downloadMedia({ downloadEvenIfExpensive: true, rmrReason: 1 });
+        const directBlob = directData?.mediaBlob || directData?.mediaBlobPlaintext || directData?.blob;
+        if (directBlob) {
+          const directBase64 = await whatsappWindow.WWebJS.arrayBufferToBase64Async(await directBlob.arrayBuffer());
+          return {
+            ok: Boolean(directBase64),
+            reason: directBase64 ? null : "model_download_empty",
+            error: null,
+            byteLength: directBase64 ? Math.ceil(directBase64.length * 0.75) : 0,
+            declaredMimeType: msg.mimetype ?? directBlob.type ?? null,
+            fileName: msg.filename ?? null,
+            strategy: "msg.downloadMedia_blob",
+            metadata: metadata(),
+            ...(directBase64 ? { media: { data: directBase64, mimetype: msg.mimetype ?? directBlob.type ?? null, filename: msg.filename ?? null, filesize: msg.size ?? null } } : {}),
+          };
+        }
+      } catch {
+        // Continue to the download manager path below.
+      }
+
+      if (!msg.directPath || !msg.mediaKey) return { ok: false, reason: "missing_raw_media_identifiers", error: null, byteLength: 0, declaredMimeType: msg.mimetype ?? null, fileName: msg.filename ?? null, strategy: "download_manager", metadata: metadata() };
+
       if (msg.mediaData?.mediaStage !== "RESOLVED") {
         try {
           await msg.downloadMedia({ downloadEvenIfExpensive: true, rmrReason: 1 });
@@ -308,8 +347,9 @@ async function downloadRawMessageMedia(
         byteLength,
         declaredMimeType: msg.mimetype ?? null,
         fileName: msg.filename ?? null,
+        strategy: "download_manager",
         metadata: metadata(),
-        media: data ? { data, mimetype: msg.mimetype ?? null, filename: msg.filename ?? null, filesize: msg.size ?? null } : undefined,
+        ...(data ? { media: { data, mimetype: msg.mimetype ?? null, filename: msg.filename ?? null, filesize: msg.size ?? null } } : {}),
       };
     } catch (error) {
       return {
@@ -319,10 +359,23 @@ async function downloadRawMessageMedia(
         byteLength: 0,
         declaredMimeType: msg.mimetype ?? null,
         fileName: msg.filename ?? null,
+        strategy: "download_manager",
         metadata: metadata(),
       };
     }
   }, message.id._serialized);
+  } catch (error: unknown) {
+    browserResult = {
+      ok: false,
+      reason: "page_evaluate_threw",
+      error: getErrorMessage(error),
+      byteLength: 0,
+      declaredMimeType: null,
+      fileName: null,
+      strategy: "page_evaluate",
+      metadata: null,
+    };
+  }
 
   const result: WhatsAppRawMediaDownloadResult = {
     returnedMedia: Boolean(browserResult.ok && browserResult.media),
@@ -331,6 +384,7 @@ async function downloadRawMessageMedia(
     byteLength: browserResult.byteLength,
     declaredMimeType: browserResult.declaredMimeType,
     fileName: browserResult.fileName,
+    strategy: browserResult.strategy,
     metadata: browserResult.metadata ? toJsonObject(browserResult.metadata) : null,
   };
   console.log("WhatsApp raw media download fallback result", { messageReference, ...result });
