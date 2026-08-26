@@ -52,7 +52,7 @@ async function request<T>(
   canRefresh = true,
 ): Promise<T> {
   const headers = new Headers(options.headers);
-  if (options.body && !headers.has("Content-Type")) {
+  if (options.body && !(options.body instanceof FormData) && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
 
@@ -209,6 +209,23 @@ export function sendTicketMessage(
     method: "POST",
     body: JSON.stringify({ text, clientRequestId }),
     signal: AbortSignal.timeout(45_000),
+  });
+}
+
+export function sendTicketMedia(
+  ticketId: number,
+  file: File,
+  caption: string,
+  clientRequestId: string,
+): Promise<TicketMessage> {
+  const form = new FormData();
+  form.append("media", file);
+  form.append("caption", caption);
+  form.append("clientRequestId", clientRequestId);
+  return request<TicketMessage>(`/api/tickets/${ticketId}/media`, {
+    method: "POST",
+    body: form,
+    signal: AbortSignal.timeout(90_000),
   });
 }
 

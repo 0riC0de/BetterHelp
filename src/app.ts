@@ -5,6 +5,7 @@ import express, {
   type Response,
 } from "express";
 import morgan from "morgan";
+import multer from "multer";
 
 import { HttpError } from "./errors/http-error.js";
 import {
@@ -42,6 +43,13 @@ function handleError(
 ): void {
   if (error instanceof HttpError) {
     res.status(error.statusCode).json({ error: error.message });
+    return;
+  }
+
+  if (error instanceof multer.MulterError) {
+    res.status(error.code === "LIMIT_FILE_SIZE" ? 413 : 400).json({
+      error: error.code === "LIMIT_FILE_SIZE" ? "Media cannot exceed 16 MB" : "Invalid media upload",
+    });
     return;
   }
 

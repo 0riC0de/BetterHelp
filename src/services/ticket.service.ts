@@ -179,6 +179,7 @@ export async function createPendingOutgoingMessage(
   technicianId: number,
   body: string,
   clientRequestId: string,
+  media?: { mimeType: string; data: string; fileName: string },
 ): Promise<MessageResult> {
   const existing = await prisma.ticketMessage.findUnique({
     where: { clientRequestId },
@@ -186,7 +187,12 @@ export async function createPendingOutgoingMessage(
   });
   if (existing) {
     const { ticket, ...message } = existing;
-    if (message.ticketId !== ticketId || message.body !== body) {
+    if (
+      message.ticketId !== ticketId ||
+      message.body !== body ||
+      message.mediaMimeType !== (media?.mimeType ?? null) ||
+      message.mediaFileName !== (media?.fileName ?? null)
+    ) {
       throw new HttpError(409, "Client request ID was already used for another message");
     }
     const canRetry =
@@ -227,6 +233,11 @@ export async function createPendingOutgoingMessage(
         body,
         deliveryStatus: "PENDING",
         clientRequestId,
+        ...(media ? {
+          mediaMimeType: media.mimeType,
+          mediaData: media.data,
+          mediaFileName: media.fileName,
+        } : {}),
       },
       select: TICKET_MESSAGE_SELECT,
     });
@@ -239,7 +250,7 @@ export async function createPendingOutgoingMessage(
     });
   } catch (error: unknown) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-      return createPendingOutgoingMessage(ticketId, technicianId, body, clientRequestId);
+      return createPendingOutgoingMessage(ticketId, technicianId, body, clientRequestId, media);
     }
     throw error;
   }

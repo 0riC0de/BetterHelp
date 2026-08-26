@@ -56,7 +56,7 @@ export default function DashboardShell() {
           overflow: "hidden",
         }}
       >
-          <Box sx={{ display: { xs: selectedId ? "none" : "block", md: "block" }, minHeight: 0 }}>
+          <Box sx={{ display: { xs: selectedId ? "none" : "block", md: "block" }, height: "100%", minHeight: 0, overflow: "hidden" }}>
             <TicketInbox
               tickets={visibleTickets}
               selectedId={selectedTicket?.id ?? null}

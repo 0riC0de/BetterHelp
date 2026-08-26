@@ -2,7 +2,9 @@
 
 import ArrowBackOutlined from "@mui/icons-material/ArrowBackOutlined";
 import SendOutlined from "@mui/icons-material/SendOutlined";
-import { Alert, Box, Button, Card, Container, IconButton, Stack, TextField, Typography } from "@mui/material";
+import AttachFileOutlined from "@mui/icons-material/AttachFileOutlined";
+import CloseOutlined from "@mui/icons-material/CloseOutlined";
+import { Alert, Box, Button, Card, Chip, Container, IconButton, Stack, TextField, Typography } from "@mui/material";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 
@@ -25,6 +27,8 @@ export default function TicketConversationView(props: TicketConversationViewProp
   const connection = useConnectionStatus();
   const conversation = useTicketConversation(props.ticketId);
   const [text, setText] = useState("");
+  const [attachment, setAttachment] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const messageEndRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => { messageEndRef.current?.scrollIntoView({ block: "end" }); }, [conversation.messages]);
@@ -33,7 +37,16 @@ export default function TicketConversationView(props: TicketConversationViewProp
   async function submit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     const message = text.trim();
-    if (message && await conversation.send(message)) setText("");
+    const sent = attachment
+      ? await conversation.sendMedia(attachment, message)
+      : message
+        ? await conversation.send(message)
+        : false;
+    if (sent) {
+      setText("");
+      setAttachment(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
   }
 
   if (conversation.isLoading) return props.embedded
@@ -60,7 +73,21 @@ export default function TicketConversationView(props: TicketConversationViewProp
       <Box component="form" onSubmit={(event) => void submit(event)} sx={{ p: 1.5, borderTop: 1, borderColor: "divider", bgcolor: "background.paper" }}>
         {archived ? <Typography color="text.secondary" sx={{ textAlign: "center" }}>Unarchive this ticket to make changes.</Typography>
           : resolved ? <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "center" }}><Typography color="text.secondary">Reopen to continue this conversation.</Typography><Button onClick={() => void conversation.reopen()}>Reopen</Button></Stack>
-          : <Stack direction="row" spacing={1} sx={{ alignItems: "flex-end" }}><TextField fullWidth multiline maxRows={5} label="Reply via WhatsApp" value={text} onChange={(event) => setText(event.target.value)} disabled={conversation.isSending} slotProps={{ htmlInput: { maxLength: 4000 } }} /><IconButton type="submit" color="primary" disabled={!text.trim() || conversation.isSending} aria-label="Send message"><SendOutlined /></IconButton></Stack>}
+          : <Stack spacing={1}>
+              {attachment && <Chip label={`${attachment.name} (${Math.ceil(attachment.size / 1024)} KB)`} onDelete={() => { setAttachment(null); if (fileInputRef.current) fileInputRef.current.value = ""; }} deleteIcon={<CloseOutlined />} sx={{ alignSelf: "flex-start", maxWidth: "100%" }} />}
+              <Stack direction="row" spacing={0.5} sx={{ alignItems: "flex-end" }}>
+                <input
+                  ref={fileInputRef}
+                  hidden
+                  type="file"
+                  accept="image/*,audio/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv"
+                  onChange={(event) => setAttachment(event.target.files?.item(0) ?? null)}
+                />
+                <IconButton onClick={() => fileInputRef.current?.click()} disabled={conversation.isSending} aria-label="Attach media"><AttachFileOutlined /></IconButton>
+                <TextField fullWidth multiline maxRows={5} label={attachment ? "Add a caption" : "Reply via WhatsApp"} value={text} onChange={(event) => setText(event.target.value)} disabled={conversation.isSending} slotProps={{ htmlInput: { maxLength: 4000 } }} />
+                <IconButton type="submit" color="primary" disabled={(!text.trim() && !attachment) || conversation.isSending} aria-label="Send message"><SendOutlined /></IconButton>
+              </Stack>
+            </Stack>}
       </Box>
     </Card>
   );

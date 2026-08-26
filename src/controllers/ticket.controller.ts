@@ -17,7 +17,7 @@ import {
   setTicketArchived,
   type TicketConversation,
 } from "../services/ticket.service.js";
-import { sendTicketReply } from "../services/whatsapp.service.js";
+import { sendTicketMedia, sendTicketReply } from "../services/whatsapp.service.js";
 
 const INVALID_STATUS_MESSAGE =
   "Invalid status filter. Use open, in_progress, or resolved.";
@@ -165,6 +165,36 @@ export async function sendTicketMessage(
         clientRequestId,
       ),
     );
+  } catch (error: unknown) {
+    next(error);
+  }
+}
+
+export async function sendTicketMediaMessage(
+  req: Request<{ id: string }, TicketMessageDto, { caption?: unknown; clientRequestId?: unknown }>,
+  res: Response<TicketMessageDto, AuthLocals>,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    if (!req.file) throw new HttpError(400, "A media file is required");
+    const caption = typeof req.body.caption === "string" ? req.body.caption.trim() : "";
+    const clientRequestId = typeof req.body.clientRequestId === "string"
+      ? req.body.clientRequestId.trim()
+      : "";
+    if (caption.length > 4_000) throw new HttpError(400, "Caption cannot exceed 4000 characters");
+    if (clientRequestId.length < 8 || clientRequestId.length > 100) {
+      throw new HttpError(400, "A valid client request ID is required");
+    }
+    const fileName = req.file.originalname
+      .replace(/[\u0000-\u001f\u007f"\\/]/g, "_")
+      .slice(0, 180) || "attachment";
+    res.status(201).json(await sendTicketMedia(
+      parseTicketId(req.params.id),
+      res.locals.technician.id,
+      { data: req.file.buffer, mimeType: req.file.mimetype, fileName },
+      caption,
+      clientRequestId,
+    ));
   } catch (error: unknown) {
     next(error);
   }

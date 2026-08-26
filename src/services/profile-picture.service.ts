@@ -2,6 +2,10 @@ import prisma from "../db/prisma.js";
 import { refreshWhatsAppProfilePictureUrl } from "./whatsapp.service.js";
 
 const MAXIMUM_PROFILE_PICTURE_BYTES = 5 * 1024 * 1024;
+const PROFILE_CACHE_TTL_MS = 60 * 60 * 1_000;
+const NEGATIVE_CACHE_TTL_MS = 5 * 60 * 1_000;
+type ProfilePicture = { buffer: Buffer; mimeType: string };
+const profileCache = new Map<string, { expiresAt: number; picture: ProfilePicture | null }>();
 
 function isAllowedProfilePictureUrl(value: string): boolean {
   try {
@@ -15,16 +19,26 @@ function isAllowedProfilePictureUrl(value: string): boolean {
   }
 }
 
-async function downloadProfilePicture(url: string): Promise<{ buffer: Buffer; mimeType: string } | null> {
-  if (!isAllowedProfilePictureUrl(url)) return null;
+async function downloadProfilePicture(value: string): Promise<ProfilePicture | null> {
+  if (!isAllowedProfilePictureUrl(value)) return null;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 8_000);
   try {
-    const response = await fetch(url, {
-      signal: controller.signal,
-      redirect: "error",
-      headers: { "User-Agent": "WhatsApp/2.23.24.79", Referer: "https://web.whatsapp.com/" },
-    });
+    let url = value;
+    let response: globalThis.Response | undefined;
+    for (let redirects = 0; redirects <= 2; redirects += 1) {
+      response = await fetch(url, {
+        signal: controller.signal,
+        redirect: "manual",
+        headers: { "User-Agent": "WhatsApp/2.23.24.79", Referer: "https://web.whatsapp.com/" },
+      });
+      if (response.status < 300 || response.status >= 400) break;
+      const location = response.headers.get("location");
+      if (!location) return null;
+      url = new URL(location, url).toString();
+      if (!isAllowedProfilePictureUrl(url)) return null;
+    }
+    if (!response) return null;
     const contentLength = Number(response.headers.get("content-length"));
     const mimeType = response.headers.get("content-type")?.split(";")[0] ?? "";
     if (!response.ok || !mimeType.startsWith("image/") || contentLength > MAXIMUM_PROFILE_PICTURE_BYTES) return null;
@@ -45,6 +59,9 @@ async function downloadProfilePicture(url: string): Promise<{ buffer: Buffer; mi
 export async function fetchProfilePicture(
   chatId: string,
 ): Promise<{ buffer: Buffer; mimeType: string } | null> {
+  const cached = profileCache.get(chatId);
+  if (cached && cached.expiresAt > Date.now()) return cached.picture;
+
   const ticket = await prisma.ticket.findFirst({
     where: { chatId },
     select: { profilePictureUrl: true },
@@ -52,12 +69,23 @@ export async function fetchProfilePicture(
   });
 
   if (ticket?.profilePictureUrl) {
-    const cached = await downloadProfilePicture(ticket.profilePictureUrl);
-    if (cached) return cached;
+    const picture = await downloadProfilePicture(ticket.profilePictureUrl);
+    if (picture) {
+      profileCache.set(chatId, { expiresAt: Date.now() + PROFILE_CACHE_TTL_MS, picture });
+      return picture;
+    }
   }
 
   const refreshedUrl = await refreshWhatsAppProfilePictureUrl(chatId);
-  if (!refreshedUrl) return null;
+  if (!refreshedUrl) {
+    profileCache.set(chatId, { expiresAt: Date.now() + NEGATIVE_CACHE_TTL_MS, picture: null });
+    return null;
+  }
   await prisma.ticket.updateMany({ where: { chatId }, data: { profilePictureUrl: refreshedUrl } });
-  return downloadProfilePicture(refreshedUrl);
+  const picture = await downloadProfilePicture(refreshedUrl);
+  profileCache.set(chatId, {
+    expiresAt: Date.now() + (picture ? PROFILE_CACHE_TTL_MS : NEGATIVE_CACHE_TTL_MS),
+    picture,
+  });
+  return picture;
 }

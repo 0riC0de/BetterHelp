@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { useAuth } from "@/providers/AuthProvider";
-import { ApiError, getTicket, sendTicketMessage, updateTicketStatus } from "@/services/api";
+import { ApiError, getTicket, sendTicketMedia, sendTicketMessage, updateTicketStatus } from "@/services/api";
 import type { Ticket, TicketMessage } from "@/types/ticket";
 
 import { useTicketRealtime } from "./useTicketRealtime";
@@ -111,6 +111,27 @@ export function useTicketConversation(ticketId: number) {
     }
   }
 
+  async function sendMedia(file: File, caption: string): Promise<boolean> {
+    if (file.size > 16 * 1024 * 1024) {
+      setError("Media cannot exceed 16 MB");
+      return false;
+    }
+    setIsSending(true);
+    try {
+      const message = await sendTicketMedia(ticketId, file, caption, generateUUID());
+      setMessages((current) => upsertMessage(current, message));
+      setError(null);
+      return true;
+    } catch (requestError: unknown) {
+      if (requestError instanceof ApiError && [401, 403].includes(requestError.status)) auth.invalidate();
+      setError(requestError instanceof ApiError ? requestError.message : "Media could not be sent");
+      await refresh();
+      return false;
+    } finally {
+      setIsSending(false);
+    }
+  }
+
   async function reopen(): Promise<void> {
     try {
       setTicket(await updateTicketStatus(ticketId, "open"));
@@ -119,5 +140,5 @@ export function useTicketConversation(ticketId: number) {
     }
   }
 
-  return { ticket, messages, isLoading, isSending, error, connectionStatus, refresh, send, reopen };
+  return { ticket, messages, isLoading, isSending, error, connectionStatus, refresh, send, sendMedia, reopen };
 }

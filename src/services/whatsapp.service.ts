@@ -17,6 +17,12 @@ import {
   type TicketDto,
 } from "../domain/ticket-view.js";
 import type { TriageResult } from "../domain/triage.js";
+import {
+  getMediaPlaceholder,
+  isSupportedMediaMimeType,
+  MAXIMUM_MEDIA_BYTES,
+  normalizeMediaMimeType,
+} from "../domain/media.js";
 import { publishTicketEvent } from "../realtime/ticket-events.js";
 import { HttpError } from "../errors/http-error.js";
 import { getErrorMessage } from "../utils/errors.js";
@@ -32,21 +38,10 @@ import {
   recordAutomaticReply,
 } from "./ticket.service.js";
 
-const { Client, LocalAuth } = WhatsAppWeb;
+const { Client, LocalAuth, MessageMedia } = WhatsAppWeb;
 
 const MAXIMUM_PROCESSED_MESSAGE_IDS = 1_000;
 const CONTACT_LOOKUP_TIMEOUT_MS = 5_000;
-const MAXIMUM_MEDIA_BYTES = 16 * 1024 * 1024;
-const SUPPORTED_MEDIA_TYPES = new Set([
-  "image/gif", "image/jpeg", "image/png", "image/webp",
-  "audio/aac", "audio/mpeg", "audio/mp4", "audio/ogg",
-  "video/mp4", "video/webm",
-  "application/pdf", "application/msword",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  "application/vnd.ms-excel",
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  "text/plain",
-]);
 const DIRECT_CHAT_SUFFIXES = ["@c.us", "@lid"] as const;
 
 type WhatsAppClient = InstanceType<typeof Client>;
@@ -184,13 +179,14 @@ async function extractTicketRequest(
     try {
       const media = await message.downloadMedia();
       const byteLength = media ? Buffer.byteLength(media.data, "base64") : 0;
+      const mimeType = media ? normalizeMediaMimeType(media.mimetype) : "";
       if (
         media &&
-        SUPPORTED_MEDIA_TYPES.has(media.mimetype) &&
+        isSupportedMediaMimeType(mimeType) &&
         byteLength > 0 &&
         byteLength <= MAXIMUM_MEDIA_BYTES
       ) {
-        mediaMimeType = media.mimetype;
+        mediaMimeType = mimeType;
         mediaData = media.data;
         mediaFileName = media.filename ?? null;
       }
@@ -212,14 +208,6 @@ async function extractTicketRequest(
     mediaData,
     mediaFileName,
   };
-}
-
-function getMediaPlaceholder(mimeType: string | null): string {
-  if (mimeType?.startsWith("image/")) return "[Image]";
-  if (mimeType?.startsWith("audio/")) return "[Audio]";
-  if (mimeType?.startsWith("video/")) return "[Video]";
-  if (mimeType) return "[Document]";
-  return "[Unsupported media]";
 }
 
 export async function refreshWhatsAppProfilePictureUrl(
@@ -584,6 +572,59 @@ export async function sendTicketReply(
     throw new HttpError(
       500,
       `WhatsApp delivered the message but history could not be updated: ${getErrorMessage(error)}`,
+    );
+  }
+}
+
+export async function sendTicketMedia(
+  ticketId: number,
+  technicianId: number,
+  media: { data: Buffer; mimeType: string; fileName: string },
+  caption: string,
+  clientRequestId: string,
+) {
+  if (!client) throw new HttpError(503, "WhatsApp client has not been initialized");
+  const mimeType = normalizeMediaMimeType(media.mimeType);
+  if (!isSupportedMediaMimeType(mimeType)) throw new HttpError(400, "Unsupported media type");
+  if (!media.data.byteLength || media.data.byteLength > MAXIMUM_MEDIA_BYTES) {
+    throw new HttpError(400, "Media must be between 1 byte and 16 MB");
+  }
+
+  const body = caption || getMediaPlaceholder(mimeType);
+  const pending = await createPendingOutgoingMessage(
+    ticketId,
+    technicianId,
+    body,
+    clientRequestId,
+    { mimeType, data: media.data.toString("base64"), fileName: media.fileName },
+  );
+  if (!pending.isNew) return pending.message;
+  const pendingMessage = pending.message.deliveryStatus === "PENDING"
+    ? pending.message
+    : await markOutgoingMessage(pending.message.id, "PENDING");
+  publishTicketEvent({ type: "message", ticket: pending.ticket, message: pendingMessage });
+
+  let sent: Message;
+  try {
+    sent = await client.sendMessage(
+      normalizeChatId(pending.ticket.chatId ?? pending.ticket.userPhone),
+      new MessageMedia(mimeType, media.data.toString("base64"), media.fileName),
+      { ...(caption ? { caption } : {}) },
+    );
+  } catch (error: unknown) {
+    const message = await markOutgoingMessage(pending.message.id, "FAILED");
+    publishTicketEvent({ type: "message", ticket: pending.ticket, message });
+    throw new HttpError(503, `WhatsApp media could not be sent: ${getErrorMessage(error)}`);
+  }
+
+  try {
+    const message = await markOutgoingMessage(pending.message.id, "SENT", sent.id?._serialized);
+    publishTicketEvent({ type: "message", ticket: pending.ticket, message });
+    return message;
+  } catch (error: unknown) {
+    throw new HttpError(
+      500,
+      `WhatsApp delivered the media but history could not be updated: ${getErrorMessage(error)}`,
     );
   }
 }

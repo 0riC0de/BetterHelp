@@ -12,7 +12,10 @@ const ticketService = vi.hoisted(() => ({
   changeTicketStatus: vi.fn(),
   getTicketConversation: vi.fn(),
 }));
-const whatsappService = vi.hoisted(() => ({ sendTicketReply: vi.fn() }));
+const whatsappService = vi.hoisted(() => ({
+  sendTicketReply: vi.fn(),
+  sendTicketMedia: vi.fn(),
+}));
 const technicianService = vi.hoisted(() => ({
   listTechnicians: vi.fn(),
   createTechnician: vi.fn(),
@@ -91,6 +94,13 @@ describe("helpdesk HTTP API", () => {
     });
     ticketService.getTicketConversation.mockResolvedValue({ ticket, messages: [message] });
     whatsappService.sendTicketReply.mockResolvedValue(message);
+    whatsappService.sendTicketMedia.mockResolvedValue({
+      ...message,
+      body: "Printer photo",
+      mediaMimeType: "image/png",
+      mediaFileName: "printer.png",
+      hasMedia: true,
+    });
     technicianService.listTechnicians.mockResolvedValue([managedTechnician]);
     technicianService.createTechnician.mockResolvedValue(managedTechnician);
     technicianService.deleteTechnician.mockResolvedValue(undefined);
@@ -183,6 +193,32 @@ describe("helpdesk HTTP API", () => {
       1,
       "We are checking this now.",
       "request-123",
+    );
+  });
+
+  it("accepts a bounded media upload for a ticket", async () => {
+    await request(app)
+      .post("/api/tickets/7/media")
+      .set("Cookie", "helpdesk_access=test-token")
+      .set("Origin", "http://localhost:3001")
+      .field("caption", "Printer photo")
+      .field("clientRequestId", "media-request-123")
+      .attach("media", Buffer.from("png-data"), {
+        filename: "printer.png",
+        contentType: "image/png",
+      })
+      .expect(201);
+
+    expect(whatsappService.sendTicketMedia).toHaveBeenCalledWith(
+      7,
+      1,
+      expect.objectContaining({
+        data: expect.any(Buffer),
+        mimeType: "image/png",
+        fileName: "printer.png",
+      }),
+      "Printer photo",
+      "media-request-123",
     );
   });
 

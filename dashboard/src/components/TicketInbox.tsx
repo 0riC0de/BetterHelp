@@ -21,8 +21,8 @@ interface TicketInboxProps {
 
 export default function TicketInbox(props: TicketInboxProps) {
   return (
-    <Box sx={{ minWidth: 0, height: "100%", display: "flex", flexDirection: "column", bgcolor: "background.paper", borderRight: 1, borderColor: "divider" }}>
-      <Box sx={{ p: 2, borderBottom: 1, borderColor: "divider" }}>
+    <Box sx={{ minWidth: 0, height: "100%", minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden", bgcolor: "background.paper", borderRight: 1, borderColor: "divider" }}>
+      <Box sx={{ flexShrink: 0, p: 2, borderBottom: 1, borderColor: "divider" }}>
         <Typography variant="h6">Tickets</Typography>
         <Tabs value={props.mode} onChange={(_event, value) => props.onModeChange(value)} variant="fullWidth" sx={{ mt: 1 }}>
           <Tab value="inbox" label="Inbox" />
@@ -38,7 +38,7 @@ export default function TicketInbox(props: TicketInboxProps) {
           slotProps={{ input: { startAdornment: <InputAdornment position="start"><SearchOutlined /></InputAdornment> } }}
         />
       </Box>
-      <Stack sx={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
+      <Stack sx={{ flex: "1 1 0", height: 0, minHeight: 0, overflowX: "hidden", overflowY: "scroll", overscrollBehavior: "contain", scrollbarGutter: "stable", "& > *": { flexShrink: 0 } }}>
         {props.tickets.map((ticket) => (
           <TicketListItem
             key={ticket.id}
