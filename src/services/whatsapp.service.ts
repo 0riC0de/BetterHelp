@@ -313,8 +313,9 @@ async function downloadRawMessageMedia(
     });
 
     try {
-      const idObject = (messageId && typeof messageId === "object") ? messageId : null;
-      const idString = (typeof messageId === "string" && messageId) ? messageId
+      const rawId: any = messageId;
+      const idObject = (rawId && typeof rawId === "object") ? rawId : null;
+      const idString = (typeof rawId === "string" && rawId) ? rawId
         : (idObject?._serialized ?? idObject?.id ?? null);
       const idCandidates = [idObject, idString].filter(Boolean) as unknown[];
       if (!idCandidates.length) return { ok: false, reason: "message_not_found", error: null, byteLength: 0, declaredMimeType: null, fileName: null, strategy: "lookup", metadata: null };
