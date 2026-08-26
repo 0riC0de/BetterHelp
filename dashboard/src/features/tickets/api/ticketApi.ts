@@ -1,4 +1,4 @@
-import { request } from "@/services/api";
+import { request, requestBlob } from "@/services/api";
 import type { AiDecision, HealthResponse, Ticket, TicketConversation, TicketListResponse, TicketMessage, TicketStatus } from "../model";
 
 export function getHealth(): Promise<HealthResponse> {
@@ -35,4 +35,16 @@ export function sendTicketMedia(ticketId: number, file: File, caption: string, c
   form.append("caption", caption);
   form.append("clientRequestId", clientRequestId);
   return request<TicketMessage>(`/api/tickets/${ticketId}/media`, { method: "POST", body: form, signal: AbortSignal.timeout(90_000) });
+}
+
+export function getTicketMessageMediaBlob(ticketId: number, messageId: number): Promise<Blob> {
+  return requestBlob(`/api/tickets/${ticketId}/messages/${messageId}/media`, {
+    signal: AbortSignal.timeout(45_000),
+  });
+}
+
+export function getProfilePictureBlob(chatId: string): Promise<Blob> {
+  return requestBlob(`/api/profile-picture/${encodeURIComponent(chatId)}`, {
+    signal: AbortSignal.timeout(45_000),
+  });
 }

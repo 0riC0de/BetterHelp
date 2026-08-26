@@ -74,6 +74,36 @@ export async function request<T>(
   return (await response.json()) as T;
 }
 
+export async function requestBlob(
+  path: string,
+  options: RequestInit = {},
+  canRefresh = true,
+): Promise<Blob> {
+  let response: Response;
+  try {
+    response = await fetch(`${API_URL}${path}`, {
+      ...options,
+      credentials: "include",
+      signal: options.signal ?? AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+  } catch (error: unknown) {
+    throw new ApiError(
+      0,
+      error instanceof DOMException && error.name === "TimeoutError"
+        ? "The backend did not respond in time"
+        : "Unable to reach the backend",
+    );
+  }
+
+  if (response.status === 401 && canRefresh) {
+    await refreshSession();
+    return requestBlob(path, options, false);
+  }
+
+  if (!response.ok) throw await readError(response);
+  return response.blob();
+}
+
 export async function login(email: string, password: string): Promise<Technician> {
   isLoggingOut = false;
   const response = await request<AuthResponse>(

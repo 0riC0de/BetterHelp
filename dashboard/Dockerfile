@@ -10,7 +10,9 @@ WORKDIR /app
 COPY --from=dependencies /app/node_modules ./node_modules
 COPY . .
 ARG NEXT_PUBLIC_API_URL=http://localhost:3000
+ARG NEXT_PUBLIC_SOCKET_TRANSPORTS=polling,websocket
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_SOCKET_TRANSPORTS=$NEXT_PUBLIC_SOCKET_TRANSPORTS
 RUN npm run build
 
 FROM node:22-bookworm-slim AS runner

@@ -2,26 +2,27 @@
 
 import { useEffect, useState } from "react";
 
-import { API_URL } from "@/services/api";
+import { getProfilePictureBlob } from "../api/ticketApi";
 
 export function useProfilePicture(chatId: string | null, cacheKey: string | null): string | undefined {
   const [source, setSource] = useState<string>();
 
   useEffect(() => {
     if (!chatId) return;
-    const controller = new AbortController();
     let objectUrl: string | undefined;
-    void fetch(`${API_URL}/api/profile-picture/${encodeURIComponent(chatId)}`, {
-      credentials: "include",
-      signal: controller.signal,
-    }).then(async (response) => {
-      if (!response.ok) return;
-      objectUrl = URL.createObjectURL(await response.blob());
-      setSource(objectUrl);
-    }).catch(() => undefined);
+    let isActive = true;
+    const task = window.setTimeout(() => {
+      setSource(undefined);
+      void getProfilePictureBlob(chatId).then((blob) => {
+        if (!isActive) return;
+        objectUrl = URL.createObjectURL(blob);
+        setSource(objectUrl);
+      }).catch(() => undefined);
+    }, 0);
 
     return () => {
-      controller.abort();
+      isActive = false;
+      window.clearTimeout(task);
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [cacheKey, chatId]);

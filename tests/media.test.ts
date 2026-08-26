@@ -5,6 +5,7 @@ import {
   isSupportedMediaMimeType,
   normalizeMediaMimeType,
 } from "../src/domain/media.js";
+import { inferMediaMimeType } from "../src/domain/infer-media-mime-type.js";
 
 describe("media validation", () => {
   it("normalizes WhatsApp codec parameters", () => {
@@ -24,5 +25,11 @@ describe("media validation", () => {
     expect(getMediaPlaceholder("image/jpeg")).toBe("[Image]");
     expect(getMediaPlaceholder("audio/ogg")).toBe("[Audio]");
     expect(getMediaPlaceholder("application/pdf")).toBe("[Document]");
+  });
+
+  it("infers useful WhatsApp media types from message type and file extension", () => {
+    expect(inferMediaMimeType("application/octet-stream", "image", null)).toBe("image/jpeg");
+    expect(inferMediaMimeType("application/octet-stream", "ptt", null)).toBe("audio/ogg");
+    expect(inferMediaMimeType("application/octet-stream", "document", "report.pdf")).toBe("application/pdf");
   });
 });

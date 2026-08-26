@@ -3,6 +3,7 @@ export * from "./HealthResponse";
 export * from "./JsonValue";
 export * from "./MessageDeliveryStatus";
 export * from "./MessageDirection";
+export * from "./MessageMediaState";
 export * from "./Ticket";
 export * from "./TicketConversation";
 export * from "./TicketListResponse";

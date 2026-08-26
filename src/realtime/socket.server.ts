@@ -40,7 +40,7 @@ function createSocketAuthenticationError(): Error & { data?: unknown } {
 
 export function createRealtimeServer(httpServer: HttpServer): RealtimeServer {
   const io = new Server<Record<string, never>, ServerToClientEvents, Record<string, never>, SocketData>(httpServer, {
-    transports: ["websocket"],
+    transports: ["polling", "websocket"],
     maxHttpBufferSize: 64 * 1_024,
     cors: {
       origin: [...getDashboardAllowedOrigins()],

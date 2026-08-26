@@ -5,8 +5,8 @@ import DownloadOutlined from "@mui/icons-material/DownloadOutlined";
 import { Box, Chip, Dialog, IconButton, Link, Stack, Typography } from "@mui/material";
 import { useState } from "react";
 
-import { API_URL } from "@/services/api";
 import { formatAbsoluteTime } from "../helpers/formatAbsoluteTime";
+import { useMessageMedia } from "../hooks/useMessageMedia";
 import type { MessageBubbleProps } from "./MessageBubbleProps";
 
 const MEDIA_PLACEHOLDERS = new Set(["[Image]", "[Audio]", "[Video]", "[Document]"]);
@@ -15,7 +15,8 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
   const [imageOpen, setImageOpen] = useState(false);
   const [mediaFailed, setMediaFailed] = useState(false);
   const outbound = message.direction === "OUTBOUND";
-  const mediaUrl = `${API_URL}/api/tickets/${message.ticketId}/messages/${message.id}/media`;
+  const media = useMessageMedia(message.ticketId, message.id, message.hasMedia);
+  const mediaUrl = media.source;
   const mimeType = message.mediaMimeType ?? "";
   const showCaption = !MEDIA_PLACEHOLDERS.has(message.body);
 
@@ -32,7 +33,13 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
           overflowWrap: "anywhere",
         }}
       >
-        {message.hasMedia && !mediaFailed && mimeType.startsWith("image/") && (
+        {message.hasMedia && media.isLoading && !mediaUrl && !mediaFailed && (
+          <Typography color="text.secondary" sx={{ p: 1 }}>Loading media...</Typography>
+        )}
+        {message.hasMedia && (media.failed || mediaFailed) && !mediaUrl && (
+          <Typography color="text.secondary" sx={{ p: 1 }}>Media unavailable</Typography>
+        )}
+        {message.hasMedia && mediaUrl && !mediaFailed && mimeType.startsWith("image/") && (
           <Box
             component="img"
             src={mediaUrl}
@@ -42,13 +49,13 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
             sx={{ display: "block", maxWidth: "100%", maxHeight: 420, borderRadius: 1.5, cursor: "zoom-in" }}
           />
         )}
-        {message.hasMedia && !mediaFailed && mimeType.startsWith("audio/") && (
+        {message.hasMedia && mediaUrl && !mediaFailed && mimeType.startsWith("audio/") && (
           <Box component="audio" controls preload="metadata" src={mediaUrl} onError={() => setMediaFailed(true)} sx={{ display: "block", width: { xs: 230, sm: 320 }, maxWidth: "100%" }} />
         )}
-        {message.hasMedia && !mediaFailed && mimeType.startsWith("video/") && (
+        {message.hasMedia && mediaUrl && !mediaFailed && mimeType.startsWith("video/") && (
           <Box component="video" controls preload="metadata" src={mediaUrl} onError={() => setMediaFailed(true)} sx={{ display: "block", width: 420, maxWidth: "100%", maxHeight: 420, borderRadius: 1.5 }} />
         )}
-        {message.hasMedia && (mediaFailed || (!mimeType.startsWith("image/") && !mimeType.startsWith("audio/") && !mimeType.startsWith("video/"))) && (
+        {message.hasMedia && mediaUrl && (mediaFailed || (!mimeType.startsWith("image/") && !mimeType.startsWith("audio/") && !mimeType.startsWith("video/"))) && (
           <Stack direction="row" spacing={1} sx={{ alignItems: "center", minWidth: 220, p: 1 }}>
             <AttachFileOutlined color="action" />
             <Link href={mediaUrl} download={message.mediaFileName ?? true} sx={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -67,7 +74,7 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
         {message.deliveryStatus === "PENDING" && <Chip label="Sending" size="small" />}
       </Stack>
       <Dialog open={imageOpen} onClose={() => setImageOpen(false)} maxWidth="xl">
-        <Box component="img" src={mediaUrl} alt={message.mediaFileName ?? "WhatsApp image"} sx={{ display: "block", maxWidth: "90vw", maxHeight: "90vh" }} />
+        {mediaUrl && <Box component="img" src={mediaUrl} alt={message.mediaFileName ?? "WhatsApp image"} sx={{ display: "block", maxWidth: "90vw", maxHeight: "90vh" }} />}
       </Dialog>
     </Box>
   );
