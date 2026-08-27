@@ -57,6 +57,12 @@ export default function TicketConversationView(props: TicketConversationViewProp
         <IconButton onClick={props.onBack ?? (() => router.push("/"))} aria-label="Back to tickets" sx={{ display: { md: props.embedded ? "none" : "inline-flex" } }}><ArrowBackOutlined /></IconButton>
         <ContactAvatar ticket={ticket} />
         <Box sx={{ flex: 1, minWidth: 0 }}><Typography sx={{ fontWeight: 750, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ticket.userName ?? ticket.userPhone}</Typography><Typography variant="caption" color="text.secondary">Ticket #{ticket.id}</Typography></Box>
+        <Chip
+          size="small"
+          label={ticket.queue?.name ?? "Unassigned"}
+          variant={ticket.queue ? "filled" : "outlined"}
+          sx={ticket.queue ? { bgcolor: ticket.queue.color, color: "common.white" } : undefined}
+        />
         <StatusChip status={ticket.status} />
       </Stack>
       {conversation.error && <Alert severity="error">{conversation.error}</Alert>}

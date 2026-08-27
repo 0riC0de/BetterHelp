@@ -15,6 +15,7 @@ import {
   getTicketConversation,
   listTickets,
   setTicketArchived,
+  setTicketQueue,
   type TicketConversation,
 } from "../services/ticket.service.js";
 import { sendTicketMedia, sendTicketReply } from "../services/whatsapp.service.js";
@@ -23,6 +24,8 @@ const INVALID_STATUS_MESSAGE =
   "Invalid status filter. Use open, in_progress, or resolved.";
 const INVALID_CLASSIFICATION_MESSAGE =
   "Invalid classification filter. Use CAN_AUTO_FIX, NEEDS_REMOTE_TAKEOVER, or MANUAL_VISIT_REQUIRED.";
+const INVALID_QUEUE_MESSAGE =
+  "Invalid queue filter. Use a positive integer queue ID or unassigned.";
 
 interface TicketListResponse {
   tickets: TicketDto[];
@@ -39,6 +42,10 @@ interface SendMessageBody {
 
 interface ArchiveBody {
   archived?: unknown;
+}
+
+interface QueueBody {
+  queueId?: unknown;
 }
 
 type ValueGuard<T extends string> = (value: unknown) => value is T;
@@ -71,13 +78,28 @@ function createTicketFilter(query: Request["query"]): Prisma.TicketWhereInput {
     INVALID_CLASSIFICATION_MESSAGE,
   );
   const archive = query.archive ?? "active";
+  const queueId = query.queueId;
   if (archive !== "active" && archive !== "archived" && archive !== "all") {
     throw new HttpError(400, "Archive filter must be active, archived, or all");
+  }
+
+  let queueFilter: number | null | undefined;
+  if (queueId !== undefined) {
+    if (queueId === "unassigned") {
+      queueFilter = null;
+    } else {
+      const parsedQueueId = Number(queueId);
+      if (!Number.isSafeInteger(parsedQueueId) || parsedQueueId <= 0) {
+        throw new HttpError(400, INVALID_QUEUE_MESSAGE);
+      }
+      queueFilter = parsedQueueId;
+    }
   }
 
   return {
     ...(status ? { status } : {}),
     ...(classification ? { aiDecision: classification } : {}),
+    ...(queueFilter === undefined ? {} : { queueId: queueFilter }),
     ...(archive === "active"
       ? { archivedAt: null }
       : archive === "archived"
@@ -212,6 +234,21 @@ export async function updateTicketArchive(
     res.json(
       await setTicketArchived(parseTicketId(req.params.id), req.body.archived),
     );
+  } catch (error: unknown) {
+    next(error);
+  }
+}
+
+export async function updateTicketQueue(
+  req: Request<{ id: string }, TicketDto, QueueBody>,
+  res: Response<TicketDto>,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    if (req.body.queueId !== null && typeof req.body.queueId !== "number") {
+      throw new HttpError(400, "Queue ID must be a number or null");
+    }
+    res.json(await setTicketQueue(parseTicketId(req.params.id), req.body.queueId ?? null));
   } catch (error: unknown) {
     next(error);
   }

@@ -37,6 +37,7 @@ model Ticket {
   profilePictureData String?
   profilePictureStorageKey String?
   machineId       Int?
+  queueId         Int?
   userPhone       String
   userName        String?
   pcNumber        Int?
@@ -54,13 +55,28 @@ model Ticket {
   archivedAt      DateTime?
   messages        TicketMessage[]
   machine         Machine?   @relation(fields: [machineId], references: [id], onDelete: SetNull)
+  queue           Queue?     @relation(fields: [queueId], references: [id], onDelete: SetNull)
 
   @@index([status])
   @@index([createdAt])
   @@index([chatId, status])
   @@index([archivedAt, updatedAt])
   @@index([machineId])
+  @@index([queueId])
   @@index([pcNumber])
+}
+
+model Queue {
+  id          Int       @id @default(autoincrement())
+  name        String    @unique
+  color       String    @default("#1976d2")
+  description String?
+  isDefault   Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  tickets     Ticket[]
+
+  @@index([isDefault])
 }
 
 model Technician {

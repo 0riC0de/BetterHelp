@@ -8,6 +8,7 @@ export interface Ticket {
   profilePictureUrl: string | null;
   hasProfilePicture: boolean;
   machineId: number | null;
+  queue: { id: number; name: string; color: string; isDefault: boolean } | null;
   userPhone: string;
   userName: string | null;
   pcNumber: number | null;

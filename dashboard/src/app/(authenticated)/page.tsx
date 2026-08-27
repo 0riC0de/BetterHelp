@@ -8,6 +8,7 @@ import TicketConversationView from "@/features/tickets/components/TicketConversa
 import TicketInbox from "@/features/tickets/components/TicketInbox";
 import { filterTicketsByMode, type TicketListMode } from "@/features/tickets/helpers/filterTicketsByMode";
 import { useTickets } from "@/features/tickets/hooks/useTickets";
+import { useQueues } from "@/features/queues/hooks/useQueues";
 import { useAuth } from "@/providers/AuthProvider";
 import { useConnectionStatus } from "@/providers/ConnectionStatusProvider";
 
@@ -15,8 +16,10 @@ export default function TicketsPage() {
   const auth = useAuth();
   const connection = useConnectionStatus();
   const tickets = useTickets(auth.invalidate);
+  const queues = useQueues();
   const [mode, setMode] = useState<TicketListMode>("inbox");
   const [search, setSearch] = useState("");
+  const [queueFilter, setQueueFilter] = useState("all");
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [now, setNow] = useState(() => Date.now());
 
@@ -27,7 +30,7 @@ export default function TicketsPage() {
   useEffect(() => { connection.setStatus(tickets.connectionStatus); }, [connection, tickets.connectionStatus]);
 
   if (tickets.isLoading) return <LoadingSkeleton variant="conversation" />;
-  const visibleTickets = filterTicketsByMode(tickets.tickets, mode, search);
+  const visibleTickets = filterTicketsByMode(tickets.tickets, mode, search, queueFilter);
   const selectedTicket = visibleTickets.find((ticket) => ticket.id === selectedId) ?? visibleTickets[0] ?? null;
 
   return (
@@ -37,12 +40,15 @@ export default function TicketsPage() {
         <Box sx={{ display: { xs: selectedId ? "none" : "block", md: "block" }, height: "100%", minHeight: 0, overflow: "hidden" }}>
           <TicketInbox
             tickets={visibleTickets}
+            queues={queues.queues}
             selectedId={selectedTicket?.id ?? null}
             mode={mode}
             search={search}
+            queueFilter={queueFilter}
             now={now}
             onModeChange={(nextMode) => { setMode(nextMode); setSelectedId(null); }}
             onSearchChange={setSearch}
+            onQueueFilterChange={(nextQueueFilter) => { setQueueFilter(nextQueueFilter); setSelectedId(null); }}
             onSelect={setSelectedId}
             onArchive={(id) => void tickets.setArchived(id, true)}
             onUnarchive={(id) => void tickets.setArchived(id, false)}

@@ -6,6 +6,7 @@ import {
   sendTicketMessage,
   sendTicketMediaMessage,
   updateTicketArchive,
+  updateTicketQueue,
   updateTicketStatus,
 } from "../controllers/ticket.controller.js";
 import { getProfilePicture } from "../packages/profile-pictures/profile-picture.controller.js";
@@ -42,6 +43,11 @@ ticketRouter.patch(
   "/tickets/:id/archive",
   requireDashboardOrigin,
   updateTicketArchive,
+);
+ticketRouter.patch(
+  "/tickets/:id/queue",
+  requireDashboardOrigin,
+  updateTicketQueue,
 );
 
 export default ticketRouter;

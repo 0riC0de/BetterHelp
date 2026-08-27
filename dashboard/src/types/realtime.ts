@@ -28,7 +28,8 @@ export interface TicketUpdatedEvent extends TicketCreatedEvent {
     | "triage_completed"
     | "status_changed"
     | "message_received"
-    | "archive_changed";
+    | "archive_changed"
+    | "queue_changed";
 }
 
 export interface TicketMessageEvent extends TicketCreatedEvent {

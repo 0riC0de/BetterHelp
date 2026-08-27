@@ -21,6 +21,10 @@ export function updateTicketArchive(ticketId: number, archived: boolean): Promis
   return request<Ticket>(`/api/tickets/${ticketId}/archive`, { method: "PATCH", body: JSON.stringify({ archived }) });
 }
 
+export function updateTicketQueue(ticketId: number, queueId: number | null): Promise<Ticket> {
+  return request<Ticket>(`/api/tickets/${ticketId}/queue`, { method: "PATCH", body: JSON.stringify({ queueId }) });
+}
+
 export function getTicket(ticketId: number): Promise<TicketConversation> {
   return request<TicketConversation>(`/api/tickets/${ticketId}`);
 }

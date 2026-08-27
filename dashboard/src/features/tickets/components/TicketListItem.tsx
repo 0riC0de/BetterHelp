@@ -1,5 +1,5 @@
 import ArchiveOutlined from "@mui/icons-material/ArchiveOutlined";
-import { Box, ListItemButton, Stack, Typography } from "@mui/material";
+import { Box, Chip, ListItemButton, Stack, Typography } from "@mui/material";
 import { useRef, useState } from "react";
 
 import { formatRelativeTime } from "../helpers/formatRelativeTime";
@@ -116,6 +116,17 @@ export default function TicketListItem({ ticket, selected, now, onSelect, onArch
           <Typography variant="body2" color="text.secondary" sx={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {ticket.summary ?? ticket.rawMessage}
           </Typography>
+          <Chip
+            size="small"
+            label={ticket.queue?.name ?? "Unassigned"}
+            variant={ticket.queue ? "filled" : "outlined"}
+            sx={{
+              mt: 0.75,
+              maxWidth: "100%",
+              alignSelf: "flex-start",
+              ...(ticket.queue ? { bgcolor: ticket.queue.color, color: "common.white" } : {}),
+            }}
+          />
         </Box>
       </ListItemButton>
     </Box>

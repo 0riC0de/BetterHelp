@@ -7,7 +7,8 @@ export type TicketUpdateReason =
   | "triage_completed"
   | "status_changed"
   | "message_received"
-  | "archive_changed";
+  | "archive_changed"
+  | "queue_changed";
 
 export type TicketDomainEvent =
   | { type: "created"; ticket: TicketDto }

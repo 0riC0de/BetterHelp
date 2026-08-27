@@ -2,6 +2,7 @@
 
 import ConfirmationNumberOutlined from "@mui/icons-material/ConfirmationNumberOutlined";
 import DesktopWindowsOutlined from "@mui/icons-material/DesktopWindowsOutlined";
+import LabelOutlined from "@mui/icons-material/LabelOutlined";
 import ManageAccountsOutlined from "@mui/icons-material/ManageAccountsOutlined";
 import SpaceDashboardOutlined from "@mui/icons-material/SpaceDashboardOutlined";
 import StorageOutlined from "@mui/icons-material/StorageOutlined";
@@ -19,6 +20,7 @@ export default function NavigationDrawer({ open, role, onClose }: NavigationDraw
     ...(role === "ADMIN"
       ? [
           { label: "Workspace", path: "/workspace", icon: <DesktopWindowsOutlined /> },
+          { label: "Queues", path: "/queues", icon: <LabelOutlined /> },
           { label: "Database", path: "/database", icon: <StorageOutlined /> },
           { label: "User management", path: "/users", icon: <ManageAccountsOutlined /> },
         ]

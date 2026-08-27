@@ -16,6 +16,7 @@ import authRouter from "./routes/auth.routes.js";
 import ticketRouter from "./routes/ticket.routes.js";
 import technicianRouter from "./routes/technician.routes.js";
 import inventoryRouter from "./routes/inventory.routes.js";
+import queueRouter from "./routes/queue.routes.js";
 import dataMaintenanceRouter from "./packages/data-maintenance/data-maintenance.routes.js";
 import { isDashboardOriginAllowed } from "./security/origins.js";
 
@@ -88,6 +89,7 @@ app.get("/health", getHealth);
 app.use("/api/auth", authRouter);
 app.use("/api/technicians", technicianRouter);
 app.use("/api/machines", inventoryRouter);
+app.use("/api/queues", queueRouter);
 app.use("/api/admin/database", dataMaintenanceRouter);
 app.use("/api", ticketRouter);
 app.use(handleNotFound);

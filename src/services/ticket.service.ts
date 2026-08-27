@@ -99,6 +99,13 @@ async function findMessageByExternalId(
 
 async function persistIncomingMessage(input: IncomingMessageInput): Promise<MessageResult> {
   return prisma.$transaction(async (transaction) => {
+    const queue = await transaction.queue.findFirst({
+      where: { isDefault: true },
+      select: { id: true },
+    }) ?? await transaction.queue.findFirst({
+      orderBy: [{ isDefault: "desc" }, { id: "asc" }],
+      select: { id: true },
+    });
     const activeTicket = await transaction.ticket.findFirst({
       where: { chatId: input.chatId, status: { in: ACTIVE_STATUSES } },
       orderBy: { id: "desc" },
@@ -140,6 +147,7 @@ async function persistIncomingMessage(input: IncomingMessageInput): Promise<Mess
             profilePictureData: input.profilePictureData,
             rawMessage: input.body,
             status: "open",
+            ...(queue ? { queueId: queue.id } : {}),
             updatedAt: input.occurredAt,
           },
           select: TICKET_VIEW_SELECT,
@@ -356,4 +364,33 @@ export async function setTicketArchived(
   const ticketDto = toTicketDto(ticket);
   publishTicketEvent({ type: "updated", reason: "archive_changed", ticket: ticketDto });
   return ticketDto;
+}
+
+export async function setTicketQueue(
+  ticketId: number,
+  queueId: number | null,
+): Promise<TicketDto> {
+  if (queueId !== null) {
+    const queue = await prisma.queue.findUnique({
+      where: { id: queueId },
+      select: { id: true },
+    });
+    if (!queue) throw new HttpError(404, "Queue not found");
+  }
+
+  try {
+    const ticket = await prisma.ticket.update({
+      where: { id: ticketId },
+      data: { queueId },
+      select: TICKET_VIEW_SELECT,
+    });
+    const ticketDto = toTicketDto(ticket);
+    publishTicketEvent({ type: "updated", reason: "queue_changed", ticket: ticketDto });
+    return ticketDto;
+  } catch (error: unknown) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
+      throw new HttpError(404, "Ticket not found");
+    }
+    throw error;
+  }
 }

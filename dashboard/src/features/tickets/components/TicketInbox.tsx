@@ -1,7 +1,7 @@
 import ArchiveOutlined from "@mui/icons-material/ArchiveOutlined";
 import ForumOutlined from "@mui/icons-material/ForumOutlined";
 import SearchOutlined from "@mui/icons-material/SearchOutlined";
-import { Box, Button, InputAdornment, Stack, TextField, Typography } from "@mui/material";
+import { Box, Button, MenuItem, InputAdornment, Select, Stack, TextField, Typography } from "@mui/material";
 
 import TicketListItem from "./TicketListItem";
 import type { TicketInboxProps } from "./TicketInboxProps";
@@ -20,6 +20,19 @@ export default function TicketInbox(props: TicketInboxProps) {
           sx={{ mt: 1.5 }}
           slotProps={{ input: { startAdornment: <InputAdornment position="start"><SearchOutlined /></InputAdornment> } }}
         />
+        <Select
+          fullWidth
+          size="small"
+          value={props.queueFilter}
+          onChange={(event) => props.onQueueFilterChange(String(event.target.value))}
+          sx={{ mt: 1.25 }}
+        >
+          <MenuItem value="all">All queues</MenuItem>
+          <MenuItem value="unassigned">Unassigned</MenuItem>
+          {props.queues.map((queue) => (
+            <MenuItem key={queue.id} value={String(queue.id)}>{queue.name}</MenuItem>
+          ))}
+        </Select>
       </Box>
       <Stack sx={{ flex: "1 1 0", height: 0, minHeight: 0, overflowX: "hidden", overflowY: "scroll", overscrollBehavior: "contain", scrollbarGutter: "stable", "& > *": { flexShrink: 0 } }}>
         {props.tickets.map((ticket) => (

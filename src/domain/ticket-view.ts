@@ -9,6 +9,14 @@ export const TICKET_VIEW_SELECT = {
   profilePictureUrl: true,
   profilePictureData: true,
   machineId: true,
+  queue: {
+    select: {
+      id: true,
+      name: true,
+      color: true,
+      isDefault: true,
+    },
+  },
   userPhone: true,
   userName: true,
   pcNumber: true,
@@ -36,6 +44,7 @@ export interface TicketDto {
   profilePictureUrl: string | null;
   hasProfilePicture: boolean;
   machineId: number | null;
+  queue: { id: number; name: string; color: string; isDefault: boolean } | null;
   userPhone: string;
   userName: string | null;
   pcNumber: number | null;
@@ -60,6 +69,7 @@ export function toTicketDto(ticket: TicketRecord): TicketDto {
     profilePictureUrl: ticket.profilePictureUrl,
     hasProfilePicture: Boolean(ticket.profilePictureData),
     machineId: ticket.machineId,
+    queue: ticket.queue,
     userPhone: ticket.userPhone,
     userName: ticket.userName,
     pcNumber: ticket.pcNumber,
