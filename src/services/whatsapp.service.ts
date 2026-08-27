@@ -43,10 +43,6 @@ class WhatsAppService {
 
   private messageProcessor: WhatsAppMessageProcessor | undefined;
 
-  private pendingOpenResolver: ((socket: WhatsAppSocket) => void) | undefined;
-
-  private pendingOpenRejecter: ((error: unknown) => void) | undefined;
-
   public async refreshWhatsAppProfilePictureUrl(chatId: string): Promise<string | null> {
     if (!this.socket) return null;
 
@@ -94,34 +90,31 @@ class WhatsAppService {
         qrcode.generate(update.qr, { small: true });
       }
 
-      if (update.connection === "open") {
-        console.log("WhatsApp socket is ready.");
-        const resolver = this.pendingOpenResolver;
-        this.pendingOpenResolver = undefined;
-        this.pendingOpenRejecter = undefined;
-        resolver?.(socket);
-        return;
+    if (update.connection === "open") {
+      console.log("WhatsApp socket is ready.");
+      return;
+    }
+
+    if (update.connection === "close") {
+      const statusCode = update.lastDisconnect?.error?.output?.statusCode;
+      const loggedOut = statusCode === DisconnectReason.loggedOut;
+      const restartRequired = statusCode === DisconnectReason.restartRequired;
+      console.warn("WhatsApp socket disconnected", { loggedOut, statusCode });
+
+      if (this.socket === socket) {
+        this.socket = undefined;
+        this.mediaDownloader = undefined;
+        this.messageProcessor = undefined;
+        this.initializationPromise = undefined;
       }
 
-      if (update.connection === "close") {
-        const statusCode = update.lastDisconnect?.error?.output?.statusCode;
-        const loggedOut = statusCode === DisconnectReason.loggedOut;
-        console.warn("WhatsApp socket disconnected", { loggedOut, statusCode });
-
-        if (this.socket === socket) {
-          this.socket = undefined;
-          this.mediaDownloader = undefined;
-          this.messageProcessor = undefined;
-        }
-
-        const rejecter = this.pendingOpenRejecter;
-        if (rejecter) {
-          this.pendingOpenResolver = undefined;
-          this.pendingOpenRejecter = undefined;
-          rejecter(new Error(loggedOut ? "WhatsApp logged out" : "WhatsApp disconnected before startup completed"));
-        }
+      if (!this.isShuttingDown && (restartRequired || !loggedOut)) {
+        void this.initialize().catch((error: unknown) => {
+          console.error("WhatsApp socket restart failed", getErrorMessage(error));
+        });
       }
-    });
+    }
+  });
 
     socket.ev.on("messages.upsert", ({ messages }: { messages: any[] }) => {
       if (this.isShuttingDown || !this.messageProcessor) {
@@ -171,18 +164,7 @@ class WhatsAppService {
     socket.ev.on("creds.update", saveCreds);
     this.registerSocketEventHandlers(socket);
 
-    this.initializationPromise = new Promise<WhatsAppSocket>((resolve, reject) => {
-      this.pendingOpenResolver = resolve;
-      this.pendingOpenRejecter = reject;
-    }).catch(async (error: unknown) => {
-      if (this.socket === socket) {
-        this.socket = undefined;
-        this.mediaDownloader = undefined;
-        this.messageProcessor = undefined;
-        this.initializationPromise = undefined;
-      }
-      throw error;
-    });
+    this.initializationPromise = Promise.resolve(socket);
 
     return this.initializationPromise;
   }
