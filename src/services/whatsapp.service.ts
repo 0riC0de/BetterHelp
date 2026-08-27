@@ -1,8 +1,8 @@
 import fs from "node:fs/promises";
+import { createRequire } from "node:module";
 import path from "node:path";
 
 import qrcode from "qrcode-terminal";
-import * as Whaileys from "whaileys";
 
 import { HttpError } from "../errors/http-error.js";
 import { getErrorMessage } from "../utils/errors.js";
@@ -15,7 +15,17 @@ import { WhatsAppMediaDownloader } from "./whatsapp/whatsapp-media-downloader.js
 import { WhatsAppMessageProcessor } from "./whatsapp/whatsapp-message-processor.js";
 
 const WHATSAPP_AUTH_DIRECTORY = path.resolve("data/whatsapp-auth");
-const makeWASocket = (Whaileys as any).default as any;
+const require = createRequire(import.meta.url);
+const Whaileys = require("whaileys") as {
+  default: any;
+  Browsers: any;
+  DisconnectReason: any;
+  useMultiFileAuthState: (folder: string) => Promise<{
+    state: unknown;
+    saveCreds: () => Promise<void>;
+  }>;
+};
+const makeWASocket = Whaileys.default;
 const { Browsers, DisconnectReason, useMultiFileAuthState } = Whaileys;
 
 type WhatsAppSocket = any;
