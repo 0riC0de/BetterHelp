@@ -46,6 +46,8 @@ RUN npm ci && npm cache clean --force
 COPY tsconfig.json ./
 COPY src ./src
 
+RUN npm run prisma:generate
+
 RUN npm run build
 
 ENV NODE_ENV=production
