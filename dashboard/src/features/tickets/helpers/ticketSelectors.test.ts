@@ -24,6 +24,7 @@ const ticket: Ticket = {
   profilePictureUrl: null,
   hasProfilePicture: false,
   machineId: null,
+  queue: null,
   archivedAt: null,
 };
 
