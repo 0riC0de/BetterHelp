@@ -12,7 +12,7 @@ export default function MetricsOverview({ tickets }: MetricsOverviewProps) {
   const items = [
     { label: "Active", value: metrics.active, icon: <AssignmentOutlined />, color: "#0f5e8c" },
     { label: "Open", value: metrics.open, icon: <MarkEmailUnreadOutlined />, color: "#d97706" },
-    { label: "In progress", value: metrics.inProgress, icon: <HourglassTopOutlined />, color: "#7c3aed" },
+    { label: "In progress", value: metrics.inProgress, icon: <HourglassTopOutlined />, color: "#0f5e8c" },
     { label: "Resolved today", value: metrics.resolvedToday, icon: <TaskAltOutlined />, color: "#15803d" },
   ];
   return (

@@ -8,6 +8,7 @@ import { useState } from "react";
 import { formatAbsoluteTime } from "../helpers/formatAbsoluteTime";
 import { useMessageMedia } from "../hooks/useMessageMedia";
 import type { MessageBubbleProps } from "./MessageBubbleProps";
+import AudioMediaPlayer from "./AudioMediaPlayer";
 
 const MEDIA_PLACEHOLDERS = new Set(["[Image]", "[Audio]", "[Video]", "[Document]"]);
 
@@ -50,7 +51,7 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
           />
         )}
         {message.hasMedia && mediaUrl && !mediaFailed && mimeType.startsWith("audio/") && (
-          <Box component="audio" controls preload="metadata" src={mediaUrl} onError={() => setMediaFailed(true)} sx={{ display: "block", width: { xs: 230, sm: 320 }, maxWidth: "100%" }} />
+          <AudioMediaPlayer src={mediaUrl} label={message.mediaFileName ?? "Audio message"} />
         )}
         {message.hasMedia && mediaUrl && !mediaFailed && mimeType.startsWith("video/") && (
           <Box component="video" controls preload="metadata" src={mediaUrl} onError={() => setMediaFailed(true)} sx={{ display: "block", width: 420, maxWidth: "100%", maxHeight: 420, borderRadius: 1.5 }} />
